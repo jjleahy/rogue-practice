@@ -31,10 +31,8 @@
         #game-container {
             width: 100%;
             max-width: 800px;
-            background: #16213e;
             border-radius: 12px;
             padding: 24px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
         /* State sections - only one visible at a time */
@@ -299,23 +297,6 @@
             border-bottom: 1px solid #222;
         }
 
-        /* Command hint */
-        #command-hint {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(15, 52, 96, 0.95);
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 0.9em;
-            color: #aaa;
-        }
-
-        #command-hint strong {
-            color: #c9a227;
-        }
-
         /* Buttons (for debug/fallback) */
         .btn {
             padding: 12px 24px;
@@ -435,13 +416,6 @@
         </div>
     </div>
 
-    <!-- Command hint at bottom -->
-    <div id="command-hint">
-        <strong>Sol-Do</strong> = Confirm &nbsp;|&nbsp; <strong>Do-Sol</strong> = Back
-    </div>
-
-    <script src="audio.js"></script>
-    <script src="ui.js"></script>
-    <script src="game.js"></script>
+    <script type="module" src="game.js"></script>
 </body>
 </html>
