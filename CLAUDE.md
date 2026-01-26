@@ -1,4 +1,4 @@
-# Brass Roguelike
+# Rogue Practice
 
 A browser-based roguelike practice game controlled entirely via brass instrument and microphone. No keyboard/mouse during gameplay - navigation and performance all through played notes.
 

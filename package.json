@@ -1,7 +1,7 @@
 {
-  "name": "brass-roguelike",
+  "name": "rogue-practice",
   "version": "0.1.0",
-  "description": "A roguelike practice game controlled by brass instrument via microphone",
+  "description": "RoguePractice - A roguelike practice game controlled by brass instrument via microphone",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",

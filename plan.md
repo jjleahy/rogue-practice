@@ -1,4 +1,4 @@
-# Brass Roguelike - Development Plan
+# Rogue Practice - Development Plan
 
 ## Vision
 

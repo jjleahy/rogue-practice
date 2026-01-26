@@ -1,5 +1,5 @@
 /**
- * Basic Express server for Brass Roguelike
+ * Basic Express server for Rogue Practice
  * Serves static files and will handle LilyPond integration later
  */
 
@@ -46,6 +46,6 @@ app.get('/api/health', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`Brass Roguelike server running at http://localhost:${PORT}`);
+    console.log(`Rogue Practice server running at http://localhost:${PORT}`);
     console.log(`Open http://localhost:${PORT} in your browser to play`);
 });
