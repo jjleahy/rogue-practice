@@ -1,0 +1,22 @@
+{
+  "name": "brass-roguelike",
+  "version": "0.1.0",
+  "description": "A roguelike practice game controlled by brass instrument via microphone",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
+  },
+  "keywords": [
+    "music",
+    "practice",
+    "brass",
+    "roguelike",
+    "web-audio"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

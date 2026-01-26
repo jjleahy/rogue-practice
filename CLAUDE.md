@@ -1,94 +1,85 @@
-# Metronome & Tuner Web App
+# Brass Roguelike
 
-A browser-based practice tool combining a metronome and chromatic tuner, optimized for mobile and desktop use.
+A browser-based roguelike practice game controlled entirely via brass instrument and microphone. No keyboard/mouse during gameplay - navigation and performance all through played notes.
 
-## Features
+## Quick Start
 
-### Metronome
-- Adjustable BPM (40-240)
-- Visual beat indicator
-- Audio click using Web Audio API
+```bash
+npm install
+npm start
+# Open http://localhost:3000
+```
 
-### Tuner
-- Real-time pitch detection using autocorrelation
-- Chromatic tuning (detects all notes, 50-2000 Hz range)
-- Visual cents indicator showing tuning accuracy
-- Color-coded feedback (green: ±5 cents, yellow: ±20 cents, red: beyond)
-- Works on both desktop and mobile browsers
+Or open `client/index.html` directly for client-only testing.
 
-### Recording & Analysis
-- Records last 5 seconds of audio for playback
-- Detection log showing last 20 pitch detections
-- Statistics tracking:
-  - Detection rate (successful vs failed detections)
-  - Most frequently detected notes with average frequencies
-- Export stats to JSON for detailed analysis
+## Project Structure
 
-## Technical Implementation
+```
+/client
+  index.html    - Game UI (calibration, menu, gameplay, results, game over)
+  audio.js      - Pitch detection, note onset/offset tracking, command recognition
+  ui.js         - DOM manipulation, visual metronome
+  game.js       - State machine, game logic, excerpt handling
 
-### Pitch Detection Algorithm
-- **FFT Size**: 8192 samples for high frequency resolution
-- **Autocorrelation**: Time-domain pitch detection with parabolic interpolation for sub-sample accuracy
-- **RMS Threshold**: 0.005 for quiet sound detection
-- **Correlation Threshold**: 0.9 for reliable pitch identification
+/server
+  server.js     - Express server (serves static files, future LilyPond integration)
+  excerpts/     - (future) Excerpt definitions
 
-### Mobile Compatibility
-- Tested on iOS and Android
-- Handles different audio codec support (webm, mp4, ogg)
-- Proper AudioContext state management
-- Touch-optimized UI
+/shared         - (future) Shared types
+```
 
-### Audio Configuration
-- Microphone access with disabled audio processing:
-  - No echo cancellation
-  - No auto gain control
-  - No noise suppression
-- This ensures accurate pitch detection for musical instruments
+## Core Concepts
+
+### Navigation via Audio
+- **Calibration**: Hold fundamental note for 1.5s to establish player's key
+- **Confirm**: Sol-Do (5th down to root) - e.g., F→Bb for Bb instruments
+- **Back**: Do-Sol (root up to 5th) - e.g., Bb→F for Bb instruments
+
+### Game Flow
+1. Calibration → detect and set instrument root
+2. Menu → select options by playing pitches, confirm with Sol-Do
+3. Gameplay → visual metronome counts, play excerpt, notes judged
+4. Results → see accuracy, HP change
+5. Game Over (if HP=0) or continue to next excerpt
+
+### Judging (priority order)
+1. Note detected in time window
+2. Correct pitch (note class, octave-agnostic)
+3. Rhythmic accuracy (timing relative to beat)
+4. Intonation (cents deviation)
+
+## Technical Details
+
+### Audio Detection
+- FFT size: 8192 for high frequency resolution
+- RMS threshold: 0.005 (detects quiet sounds)
+- Correlation threshold: 0.9 for reliable pitch
+- Note hold time: 80ms minimum to register
+- Frequency range: 50-2000 Hz
+
+### State Machine States
+- `INIT` → `CALIBRATION` → `MENU` → `COUNTDOWN` → `PLAYING` → `RESULTS` → (loop or `GAMEOVER`)
 
 ## Development Notes
 
-### Known Limitations
-- Pitch detection requires relatively clear, sustained tones
-- Quiet sounds may not be detected (adjust RMS threshold if needed)
-- Best results with single-note instruments (voice, horn, etc.)
+### Debug Features
+- Skip Calibration button: Sets C4 as root for testing without instrument
+- Debug panel: Shows detected notes, commands, state transitions
+- Console logging: `[Debug]` prefixed messages
 
-### Potential Future Enhancements
-- Tuning presets (A=440, A=442, etc.)
-- Strobe tuner mode
-- Practice session recording
-- Pitch tracking visualization
-- Specific instrument modes
-- Drone/reference pitch generator
-- Interval trainer
+### Current Limitations
+- Excerpts are hardcoded (4 test excerpts)
+- No LilyPond integration yet
+- Timing judgment is basic (correct note = pass)
+- No reward system between excerpts yet
 
-## Usage
+## Roadmap
 
-1. Open `index.html` in a modern browser (Chrome, Firefox, Safari)
-2. For HTTPS (required for mobile):
-   ```bash
-   # Using http-server with self-signed cert
-   http-server -S -C cert.pem -K key.pem
-   ```
-3. Grant microphone permissions when prompted
-4. Use metronome or tuner tabs as needed
+See plan.md for detailed development areas and next steps.
 
-## Browser Console Logging
+## Commands Reference
 
-Diagnostic logging is available via browser console:
-- `[Recording]` - Audio chunk capture events
-- `[Playback]` - Audio playback events and errors
-- `[Detection]` - Pitch detection diagnostics (sampled at ~1-5%)
-- `[Log]` - Display update errors
-
-## Files
-
-- `index.html` - Main UI and styling
-- `main.js` - All application logic (metronome, tuner, recording)
-- `cert.pem`, `key.pem` - Self-signed SSL certificates for local HTTPS
-
-## Built With
-
-- Vanilla JavaScript (no frameworks)
-- Web Audio API
-- MediaRecorder API
-- Canvas/DOM for visualization
+| Action  | Notes to Play | Example (Bb instrument) |
+|---------|---------------|-------------------------|
+| Confirm | Sol → Do      | F → Bb                  |
+| Back    | Do → Sol      | Bb → F                  |
