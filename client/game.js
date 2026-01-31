@@ -1,8 +1,31 @@
 /**
  * Game state machine and core logic
+ *
+ * TODO: Update to use new audio API from ./audio/audio.js
+ * The old audio.js has been removed. New API:
+ *
+ *   import audioManager from './audio/audio.js';
+ *
+ *   await audioManager.init();
+ *   await audioManager.start();
+ *
+ *   // For calibration and commands, use lenientListener:
+ *   audioManager.lenientListener.onNoteStart(note => { ... });
+ *   audioManager.lenientListener.onNoteEnd(note => { ... });
+ *
+ *   // For performance analysis, use performanceAnalyzer:
+ *   audioManager.performanceAnalyzer.setExpectations([...]);
+ *   audioManager.performanceAnalyzer.start();
+ *   // ... play excerpt ...
+ *   audioManager.performanceAnalyzer.stop();
+ *   const result = audioManager.performanceAnalyzer.analyze();
+ *
+ *   // Instrument config:
+ *   audioManager.instrumentContext.setTransposition('Bb');
+ *   audioManager.instrumentContext.setCalibration(frequencyHz);
  */
 
-import * as Audio from './audio.js';
+import * as Audio from './audio.js';  // TODO: Replace with new audio API
 import * as UI from './ui.js';
 import { HoldPitchScreen, ChoiceScreen, ScreenManager } from './screens.js';
 
