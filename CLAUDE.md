@@ -10,72 +10,73 @@ npm start
 # Open http://localhost:3000
 ```
 
-Or open `client/index.html` directly for client-only testing.
+For audio testing: open `client/audio/audio-test.html` directly in browser.
 
 ## Project Structure
 
 ```
 /client
-  index.html    - Game UI (calibration, menu, gameplay, results, game over)
-  audio.js      - Pitch detection, note onset/offset tracking, command recognition
-  ui.js         - DOM manipulation, visual metronome
-  game.js       - State machine, game logic, excerpt handling
+  /audio                    - Audio detection system (primary focus)
+    audio.js                - AudioInputManager: orchestrates worklet, routes to listeners
+    audio-worklet-processor.js - Runs WASM pitch/onset detection
+    lenient-note-listener.js   - Forgiving note detection for commands/calibration
+    performance-analyzer.js    - Precise analysis for judging excerpts (stub)
+    instrument-context.js      - Instrument config, tuning tendency, pitch conversion
+    audio-test.html            - Test harness for audio layers
+    /lib/microdsp              - WASM pitch detection library
+  instruments.js            - Instrument definitions (transposition, clef, range)
+  screens.js                - Screen patterns (HoldPitchScreen, ChoiceScreen)
+  game.js                   - State machine (proof-of-concept)
+  ui.js                     - DOM manipulation (proof-of-concept)
+  index.html                - Game UI (proof-of-concept)
 
 /server
-  server.js     - Express server (serves static files, future LilyPond integration)
-  excerpts/     - (future) Excerpt definitions
+  server.js                 - Express server (serves static files)
 
-/shared         - (future) Shared types
+/client/__tests__           - Vitest tests
 ```
+
+## Architecture
+
+### Audio Layer (well-structured)
+
+The audio system uses a layered architecture:
+
+1. **AudioWorklet** - Runs WASM (microdsp) for pitch detection and onset detection in real-time
+2. **AudioInputManager** - Routes worklet messages to listeners, manages lifecycle
+3. **LenientNoteListener** - Emits `noteStart`/`noteEnd` events with forgiving thresholds (for commands, instrument setup)
+4. **PerformanceAnalyzer** - Buffers raw data during excerpt performance, matches against expectations (not yet implemented)
+5. **InstrumentContext** - Singleton holding instrument config, tuning tendency (learned over time), pitch conversion utilities
+
+### Instrument Setup vs Tuning Calibration
+
+- **Instrument Setup**: Player plays their fundamental note; system detects instrument and configures transposition/clef in InstrumentContext
+- **Tuning Calibration**: InstrumentContext learns the player's overall pitch tendency organically over time, adjusting expectations accordingly (no explicit user action required)
+
+### Game Layer (proof-of-concept)
+
+Current game code (game.js, ui.js, screens.js, index.html) is proof-of-concept to be iterated or replaced. Focus is on getting audio right first.
 
 ## Core Concepts
 
 ### Navigation via Audio
-- **Calibration**: Hold fundamental note for 1.5s to establish player's key
+- **Instrument Setup**: Hold fundamental note to establish player's instrument and key
 - **Confirm**: Sol-Do (5th down to root) - e.g., F→Bb for Bb instruments
 - **Back**: Do-Sol (root up to 5th) - e.g., Bb→F for Bb instruments
 
-### Game Flow
-1. Calibration → detect and set instrument root
-2. Menu → select options by playing pitches, confirm with Sol-Do
-3. Gameplay → visual metronome counts, play excerpt, notes judged
-4. Results → see accuracy, HP change
-5. Game Over (if HP=0) or continue to next excerpt
+### Instruments
+Supports Bb, Eb, F, and C instruments with appropriate transposition and clef settings. See `instruments.js` for full list.
 
-### Judging (priority order)
-1. Note detected in time window
-2. Correct pitch (note class, octave-agnostic)
-3. Rhythmic accuracy (timing relative to beat)
-4. Intonation (cents deviation)
+## Development
 
-## Technical Details
-
-### Audio Detection
-- FFT size: 8192 for high frequency resolution
-- RMS threshold: 0.005 (detects quiet sounds)
-- Correlation threshold: 0.9 for reliable pitch
-- Note hold time: 80ms minimum to register
-- Frequency range: 50-2000 Hz
-
-### State Machine States
-- `INIT` → `CALIBRATION` → `MENU` → `COUNTDOWN` → `PLAYING` → `RESULTS` → (loop or `GAMEOVER`)
-
-## Development Notes
+### Testing
+```bash
+npm test          # Run Vitest tests
+```
 
 ### Debug Features
-- Skip Calibration button: Sets C4 as root for testing without instrument
-- Debug panel: Shows detected notes, commands, state transitions
-- Console logging: `[Debug]` prefixed messages
-
-### Current Limitations
-- Excerpts are hardcoded (4 test excerpts)
-- No LilyPond integration yet
-- Timing judgment is basic (correct note = pass)
-- No reward system between excerpts yet
-
-## Roadmap
-
-See plan.md for detailed development areas and next steps.
+- `audio-test.html`: Visualize pitch detection, note events, instrument setup
+- Console logging with `[AudioInputManager]`, `[LenientNoteListener]` prefixes
 
 ## Commands Reference
 
@@ -83,3 +84,7 @@ See plan.md for detailed development areas and next steps.
 |---------|---------------|-------------------------|
 | Confirm | Sol → Do      | F → Bb                  |
 | Back    | Do → Sol      | Bb → F                  |
+
+## Roadmap
+
+See `plan.md` for development phases and open questions.

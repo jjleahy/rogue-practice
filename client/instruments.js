@@ -10,7 +10,7 @@ export const INSTRUMENTS = {
     transposition: 3,
     clef: "treble"
   },
-  
+
   // Bb soprano instruments (Bb3 fundamental)
   "Trumpet": {
     fundamental: "Bb3",
@@ -28,17 +28,17 @@ export const INSTRUMENTS = {
     clef: "treble"
   },
 
-  // Eb alto (Eb3 fundamental)
-  "Tenor (Alto) Horn": {
-    fundamental: "Eb3",
-    transposition: -9,
-    clef: "treble"
-  },
-
   // F instruments (F3 fundamental)
   "F Horn": {
     fundamental: "F3",
     transposition: -7,
+    clef: "treble"
+  },
+
+  // Eb alto (Eb3 fundamental)
+  "Tenor (Alto) Horn": {
+    fundamental: "Eb3",
+    transposition: -9,
     clef: "treble"
   },
 
