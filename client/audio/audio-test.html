@@ -261,6 +261,91 @@
         .checkbox-row input {
             margin-right: 4px;
         }
+
+        /* Performance Analyzer Demo */
+        .beat-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .beat-box {
+            width: 60px;
+            height: 70px;
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.1s;
+        }
+
+        .beat-box .beat-label {
+            font-size: 1.1em;
+            color: #888;
+        }
+
+        .beat-box .beat-result {
+            font-size: 0.7em;
+            margin-top: 4px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .beat-box.active {
+            background: #c9a227;
+            border-color: #c9a227;
+        }
+
+        .beat-box.active .beat-label {
+            color: #1a1a2e;
+        }
+
+        .beat-box.recording {
+            border-color: #4ade80;
+        }
+
+        .beat-box .result-miss {
+            color: #f87171;
+        }
+
+        .beat-box .result-timing {
+            color: #60a5fa;
+        }
+
+        .beat-box .result-cents {
+            color: #fbbf24;
+        }
+
+        .demo-status {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+
+        .demo-summary {
+            margin-top: 12px;
+            padding: 12px;
+            background: #1a1a2e;
+            border-radius: 6px;
+        }
+
+        .demo-summary .stat {
+            display: inline-block;
+            margin-right: 20px;
+            color: #888;
+        }
+
+        .demo-summary .stat-value {
+            color: #4ade80;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -325,6 +410,36 @@
             </div>
         </div>
 
+        <!-- Performance Analyzer Demo Panel -->
+        <div class="panel full-width">
+            <h2>Performance Analyzer Demo</h2>
+            <div class="controls" style="margin-bottom: 12px;">
+                <button id="demo-btn" class="btn" disabled>Start Demo</button>
+                <span id="demo-status" class="demo-status">Start audio first</span>
+            </div>
+            <div class="beat-row" id="beat-row">
+                <!-- Count-in beats -->
+                <div class="beat-box" data-beat="0"><span class="beat-label">1</span><span class="beat-result"></span></div>
+                <div class="beat-box" data-beat="1"><span class="beat-label">2</span><span class="beat-result"></span></div>
+                <div class="beat-box" data-beat="2"><span class="beat-label">3</span><span class="beat-result"></span></div>
+                <div class="beat-box" data-beat="3"><span class="beat-label">4</span><span class="beat-result"></span></div>
+                <!-- Note beats -->
+                <div class="beat-box recording" data-beat="4"><span class="beat-label">C4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="5"><span class="beat-label">D4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="6"><span class="beat-label">E4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="7"><span class="beat-label">F4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="8"><span class="beat-label">G4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="9"><span class="beat-label">A4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="10"><span class="beat-label">B4</span><span class="beat-result"></span></div>
+                <div class="beat-box recording" data-beat="11"><span class="beat-label">C5</span><span class="beat-result"></span></div>
+            </div>
+            <div class="demo-summary" id="demo-summary" style="display: none;">
+                <span class="stat">Accuracy: <span class="stat-value" id="stat-accuracy">--</span></span>
+                <span class="stat">Avg Timing: <span class="stat-value" id="stat-timing">--</span></span>
+                <span class="stat">Avg Cents: <span class="stat-value" id="stat-cents">--</span></span>
+            </div>
+        </div>
+
         <!-- Raw Data Panel -->
         <div class="panel full-width">
             <h2>Raw Worklet Data</h2>
@@ -342,6 +457,7 @@
     <script type="module">
         import audioManager from './audio.js';
         import { getInstrumentNames } from '../instruments.js';
+        import PerformanceAnalyzer from './performance-analyzer.js';
 
         // DOM elements
         const startBtn = document.getElementById('start-btn');
@@ -361,6 +477,13 @@
         const logPitchEl = document.getElementById('log-pitch');
         const logOnsetEl = document.getElementById('log-onset');
         const clearRawBtn = document.getElementById('clear-raw-btn');
+        const demoBtn = document.getElementById('demo-btn');
+        const demoStatusEl = document.getElementById('demo-status');
+        const beatRowEl = document.getElementById('beat-row');
+        const demoSummaryEl = document.getElementById('demo-summary');
+        const statAccuracyEl = document.getElementById('stat-accuracy');
+        const statTimingEl = document.getElementById('stat-timing');
+        const statCentsEl = document.getElementById('stat-cents');
 
         // State
         let startTime = 0;
@@ -530,6 +653,8 @@
             statusEl.textContent = 'Running';
             statusEl.className = 'status running';
             stopBtn.disabled = false;
+            demoBtn.disabled = false;
+            demoStatusEl.textContent = 'Ready to start';
 
             // Start update loop
             updateInterval = setInterval(updateUI, 50);
@@ -548,6 +673,13 @@
             statusEl.className = 'status stopped';
             startBtn.disabled = false;
             stopBtn.disabled = true;
+
+            // Stop demo if running
+            if (demoRunning) {
+                stopDemo();
+            }
+            demoBtn.disabled = true;
+            demoStatusEl.textContent = 'Start audio first';
         }
 
         // Instrument change
@@ -584,6 +716,197 @@
             rawLogEl.innerHTML = '';
         });
         instrumentEl.addEventListener('change', handleInstrumentChange);
+
+        // ========================================
+        // Performance Analyzer Demo
+        // ========================================
+        const BPM = 80;
+        const BEAT_MS = 60000 / BPM; // 750ms per beat
+        const TOTAL_BEATS = 12;
+        const RECORDING_START_BEAT = 3; // Start recording at beat 3 (the "4" count)
+        const RECORDING_END_DELAY_MS = 300; // Extra time after last beat
+
+        let demoRunning = false;
+        let demoLoopTimeout = null;
+        let demoBeatTimeout = null;
+        let currentBeat = -1;
+        let performanceAnalyzer = null;
+        let previousResults = null;
+
+        // Expected notes (relative to recording start at beat 3)
+        const EXPECTED_NOTES = [
+            { pitch: 'C4', ms: 750, endMs: 1450 },   // Beat 4
+            { pitch: 'D4', ms: 1500, endMs: 2200 },  // Beat 5
+            { pitch: 'E4', ms: 2250, endMs: 2950 },  // Beat 6
+            { pitch: 'F4', ms: 3000, endMs: 3700 },  // Beat 7
+            { pitch: 'G4', ms: 3750, endMs: 4450 },  // Beat 8
+            { pitch: 'A4', ms: 4500, endMs: 5200 },  // Beat 9
+            { pitch: 'B4', ms: 5250, endMs: 5950 },  // Beat 10
+            { pitch: 'C5', ms: 6000, endMs: 6700 },  // Beat 11
+        ];
+
+        function updateBeatDisplay(beat) {
+            const boxes = beatRowEl.querySelectorAll('.beat-box');
+            boxes.forEach((box, i) => {
+                box.classList.toggle('active', i === beat);
+            });
+        }
+
+        function displayResults(results) {
+            if (!results) return;
+
+            // Update each note beat box with results
+            results.notes.forEach((note, i) => {
+                const beatIndex = i + 4; // Notes start at beat 4
+                const box = beatRowEl.querySelector(`[data-beat="${beatIndex}"]`);
+                if (!box) return;
+
+                const resultEl = box.querySelector('.beat-result');
+                if (!note.matched) {
+                    resultEl.innerHTML = '<span class="result-miss">X</span>';
+                } else {
+                    const timingSign = note.timingErrorMs >= 0 ? '+' : '';
+                    const centsSign = note.cents >= 0 ? '+' : '';
+                    resultEl.innerHTML = `
+                        <span class="result-timing">${timingSign}${note.timingErrorMs}ms</span><br>
+                        <span class="result-cents">${centsSign}${note.cents}c</span>
+                    `;
+                }
+            });
+
+            // Update summary
+            demoSummaryEl.style.display = 'block';
+            statAccuracyEl.textContent = `${results.accuracy}%`;
+            statTimingEl.textContent = `${results.averageTimingError}ms`;
+            statCentsEl.textContent = `${results.averageCentsError}c`;
+        }
+
+        function clearResults() {
+            const boxes = beatRowEl.querySelectorAll('.beat-box');
+            boxes.forEach(box => {
+                const resultEl = box.querySelector('.beat-result');
+                resultEl.innerHTML = '';
+            });
+        }
+
+        function runDemoLoop() {
+            if (!demoRunning) return;
+
+            // Display previous results while new loop runs
+            displayResults(previousResults);
+
+            // Create fresh analyzer for this loop
+            performanceAnalyzer = new PerformanceAnalyzer();
+            performanceAnalyzer.setExpectations(EXPECTED_NOTES);
+
+            currentBeat = 0;
+            const loopStartTime = performance.now();
+
+            function processBeat() {
+                if (!demoRunning) return;
+
+                updateBeatDisplay(currentBeat);
+
+                // Start recording at beat 3
+                if (currentBeat === RECORDING_START_BEAT) {
+                    performanceAnalyzer.start();
+                    demoStatusEl.textContent = 'Recording...';
+                }
+
+                // Update status
+                if (currentBeat < 4) {
+                    demoStatusEl.textContent = `Count: ${currentBeat + 1}`;
+                } else {
+                    const noteName = EXPECTED_NOTES[currentBeat - 4]?.pitch || '';
+                    demoStatusEl.textContent = `Play: ${noteName}`;
+                }
+
+                currentBeat++;
+
+                if (currentBeat < TOTAL_BEATS) {
+                    // Schedule next beat
+                    const nextBeatTime = loopStartTime + (currentBeat * BEAT_MS);
+                    const delay = nextBeatTime - performance.now();
+                    demoBeatTimeout = setTimeout(processBeat, Math.max(0, delay));
+                } else {
+                    // End of loop - stop recording after delay
+                    setTimeout(() => {
+                        if (!demoRunning) return;
+
+                        performanceAnalyzer.stop();
+                        updateBeatDisplay(-1); // Clear highlight
+
+                        // Analyze and store results
+                        previousResults = performanceAnalyzer.analyze();
+                        console.log('[Demo] Analysis results:', previousResults);
+
+                        demoStatusEl.textContent = 'Loop complete. Restarting...';
+
+                        // Start next loop after a brief pause
+                        demoLoopTimeout = setTimeout(runDemoLoop, 1000);
+                    }, RECORDING_END_DELAY_MS);
+                }
+            }
+
+            processBeat();
+        }
+
+        function startDemo() {
+            if (demoRunning) return;
+
+            demoRunning = true;
+            demoBtn.textContent = 'Stop Demo';
+            demoBtn.classList.add('btn-stop');
+            previousResults = null;
+            clearResults();
+            demoSummaryEl.style.display = 'none';
+
+            // Hook up analyzer to receive worklet events
+            audioManager.onRawEvent((data) => {
+                if (!performanceAnalyzer || !performanceAnalyzer.isRecording()) return;
+
+                if (data.type === 'pitch') {
+                    performanceAnalyzer.handlePitch(data);
+                } else if (data.type === 'onset') {
+                    performanceAnalyzer.handleOnset(data);
+                }
+            });
+
+            runDemoLoop();
+        }
+
+        function stopDemo() {
+            demoRunning = false;
+            demoBtn.textContent = 'Start Demo';
+            demoBtn.classList.remove('btn-stop');
+
+            if (demoLoopTimeout) {
+                clearTimeout(demoLoopTimeout);
+                demoLoopTimeout = null;
+            }
+            if (demoBeatTimeout) {
+                clearTimeout(demoBeatTimeout);
+                demoBeatTimeout = null;
+            }
+
+            if (performanceAnalyzer) {
+                performanceAnalyzer.stop();
+                performanceAnalyzer = null;
+            }
+
+            updateBeatDisplay(-1);
+            demoStatusEl.textContent = 'Demo stopped';
+        }
+
+        function toggleDemo() {
+            if (demoRunning) {
+                stopDemo();
+            } else {
+                startDemo();
+            }
+        }
+
+        demoBtn.addEventListener('click', toggleDemo);
 
         // Initialize
         populateInstrumentDropdown();
