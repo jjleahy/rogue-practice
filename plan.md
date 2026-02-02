@@ -14,12 +14,13 @@ A roguelike practice game where gameplay is controlled entirely via brass instru
 - AudioWorklet with WASM (microdsp) for pitch/onset detection
 - LenientNoteListener working well for forgiving note detection
 - InstrumentContext with instrument config and pitch conversion
+- Tuning calibration via InstrumentContext tendency tracking (exponential moving average)
+- PerformanceAnalyzer with note segmentation, onset refinement, and best-fit matching
 - audio-test.html for testing and visualization
 
 ### Needs Work
-- **Tuning calibration** - InstrumentContext has tendency tracking, but not yet wired up to learn from performance
-- **PerformanceAnalyzer** - Stub only, needs implementation for excerpt judging
 - **Command detection** - Sol-Do/Do-Sol recognition not yet built on top of LenientNoteListener
+- **Instrument setup flow** - Fundamental note detection to auto-configure instrument
 
 ### Proof-of-Concept (to iterate/replace)
 - Game state machine (game.js)
@@ -34,24 +35,27 @@ A roguelike practice game where gameplay is controlled entirely via brass instru
 Development is iterative - focus on whichever area needs most attention.
 
 ### Phase 1: Audio Detection & Testing
-*Current focus*
 
 - [x] Pitch detection (WASM microdsp)
 - [x] LenientNoteListener for stable note events
 - [x] InstrumentContext for instrument config
+- [x] Tuning tendency tracking in InstrumentContext
 - [x] audio-test.html test harness
 - [ ] Tune LenientNoteListener thresholds based on real instrument testing
-- [ ] Wire up tuning tendency learning in InstrumentContext
 
 ### Phase 2: Performance Analyzer
-- [ ] Implement PerformanceAnalyzer.analyze() algorithm
-- [ ] Segment pitch buffer into detected notes
-- [ ] Match detected notes to expected notes (best-fit)
-- [ ] Handle octave errors by checking pitch class
-- [ ] Calculate timing and intonation errors
-- [ ] Test with looping major scale at 80 BPM via audio-test.html
+
+- [x] Implement PerformanceAnalyzer.analyze() algorithm
+- [x] Segment pitch buffer into detected notes
+- [x] Match detected notes to expected notes (best-fit)
+- [x] Handle octave errors by checking pitch class
+- [x] Calculate timing and intonation errors
+- [x] Test with looping major scale at 80 BPM via audio-test.html
+- [ ] Iterate on matching algorithm thresholds and edge cases
 
 ### Phase 3: Command Detection
+*Current focus*
+
 - [ ] Build command detector on top of LenientNoteListener
 - [ ] Detect Sol-Do (confirm) and Do-Sol (back) sequences
 - [ ] Handle silence gaps to distinguish commands from noodling
@@ -61,6 +65,7 @@ Development is iterative - focus on whichever area needs most attention.
 - [ ] Design instrument setup screen (play fundamental, detect instrument)
 - [ ] Integrate with InstrumentContext
 - [ ] Handle edge cases (wrong note, timeout, multiple instruments with same fundamental)
+- [ ] Wire up tuning tendency updates from performance results
 
 ### Phase 5: Game State & Screens
 - [ ] Iterate on screen patterns (or replace)

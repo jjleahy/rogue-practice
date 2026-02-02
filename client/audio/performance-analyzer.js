@@ -7,13 +7,18 @@
  * Responsibilities:
  * - Buffer raw pitch/onset events during performance
  * - Accept expected notes with timing (written pitch, converted to frequencies)
+ * - Segment pitch buffer into discrete detected notes
+ * - Refine note start times using onset events (within 80ms window)
  * - Perform best-fit matching after performance ends
  * - Correct for octave errors using expected pitch context
- * - Work backwards from pitch to find likely onset times
  * - Report per-note accuracy (timing, pitch, intonation)
  *
- * NOT YET IMPLEMENTED - This is a stub with documented interface.
- * The analyze() method currently returns mock data.
+ * Algorithm:
+ * 1. Segment pitch buffer by detecting significant pitch changes (>0.8 semitones)
+ * 2. Refine start times by looking for onset events before pitch detection
+ * 3. Match detected notes to expected notes within 300ms tolerance window
+ * 4. Handle octave errors by comparing pitch classes
+ * 5. Track extra notes and missed notes for comprehensive feedback
  */
 
 import instrumentContext from './instrument-context.js';

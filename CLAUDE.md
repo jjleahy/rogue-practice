@@ -20,7 +20,7 @@ For audio testing: open `client/audio/audio-test.html` directly in browser.
     audio.js                - AudioInputManager: orchestrates worklet, routes to listeners
     audio-worklet-processor.js - Runs WASM pitch/onset detection
     lenient-note-listener.js   - Forgiving note detection for commands/calibration
-    performance-analyzer.js    - Precise analysis for judging excerpts (stub)
+    performance-analyzer.js    - Precise analysis for judging excerpts
     instrument-context.js      - Instrument config, tuning tendency, pitch conversion
     audio-test.html            - Test harness for audio layers
     /lib/microdsp              - WASM pitch detection library
@@ -45,13 +45,13 @@ The audio system uses a layered architecture:
 1. **AudioWorklet** - Runs WASM (microdsp) for pitch detection and onset detection in real-time
 2. **AudioInputManager** - Routes worklet messages to listeners, manages lifecycle
 3. **LenientNoteListener** - Emits `noteStart`/`noteEnd` events with forgiving thresholds (for commands, instrument setup)
-4. **PerformanceAnalyzer** - Buffers raw data during excerpt performance, matches against expectations (not yet implemented)
+4. **PerformanceAnalyzer** - Buffers raw data during excerpt performance, matches detected notes against expectations
 5. **InstrumentContext** - Singleton holding instrument config, tuning tendency (learned over time), pitch conversion utilities
 
 ### Instrument Setup vs Tuning Calibration
 
-- **Instrument Setup**: Player plays their fundamental note; system detects instrument and configures transposition/clef in InstrumentContext
-- **Tuning Calibration**: InstrumentContext learns the player's overall pitch tendency organically over time, adjusting expectations accordingly (no explicit user action required)
+- **Instrument Setup**: Player plays their fundamental note; system detects instrument and configures transposition/clef in InstrumentContext (not yet implemented)
+- **Tuning Calibration**: InstrumentContext tracks the player's overall pitch tendency, adjusting pitch detection boundaries accordingly. Tendency is updated via `instrumentContext.updateTendency()` which uses exponential moving average to weight recent samples
 
 ### Game Layer (proof-of-concept)
 
