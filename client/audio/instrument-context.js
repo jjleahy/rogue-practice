@@ -1,17 +1,15 @@
 /**
- * InstrumentContext - Shared context for instrument configuration and calibration
+ * InstrumentContext - Shared context for instrument configuration and tuning
  *
  * Holds:
  * - Instrument name and configuration (from instruments.js)
  * - Transposition (semitones from concert pitch)
  * - Clef (treble/bass)
- * - Calibrated root frequency (player's fundamental)
  * - Global pitch tendency (learned over time)
  *
  * Used by both LenientNoteListener and PerformanceAnalyzer to:
  * - Convert between written and sounding pitch
  * - Calculate expected frequencies (with tendency correction)
- * - Determine intervals from calibrated root
  */
 
 import { getInstrument, getInstrumentNames } from '../instruments.js';
@@ -29,10 +27,6 @@ class InstrumentContext {
 
     // Clef (from instrument config or manual override)
     this._clef = 'treble';
-
-    // Calibrated root - the player's fundamental note frequency in Hz
-    // For Bb trumpet, this would be ~233 Hz (Bb3) when playing written C4
-    this._calibratedRootHz = null;
 
     // Global pitch tendency in cents (positive = sharp, negative = flat)
     // Updated by PerformanceAnalyzer and successful calibrations
@@ -108,38 +102,6 @@ class InstrumentContext {
    */
   getClef() {
     return this._clef;
-  }
-
-  /**
-   * Set calibrated root from detected frequency
-   * Called after player holds their fundamental note during calibration
-   * @param {number} frequencyHz - The detected frequency
-   */
-  setCalibration(frequencyHz) {
-    this._calibratedRootHz = frequencyHz;
-  }
-
-  /**
-   * Get calibrated root frequency
-   * @returns {number|null}
-   */
-  getCalibrationHz() {
-    return this._calibratedRootHz;
-  }
-
-  /**
-   * Check if instrument is calibrated
-   * @returns {boolean}
-   */
-  isCalibrated() {
-    return this._calibratedRootHz !== null;
-  }
-
-  /**
-   * Clear calibration
-   */
-  clearCalibration() {
-    this._calibratedRootHz = null;
   }
 
   // --- Pitch Tendency ---
@@ -268,25 +230,6 @@ class InstrumentContext {
     }
     const midiNumber = (octave + 1) * 12 + noteIndex;
     return 440 * Math.pow(2, (midiNumber - 69) / 12);
-  }
-
-  /**
-   * Get interval in semitones from calibrated root
-   * Returns interval mod 12 (octave-agnostic) for command recognition
-   * @param {number} frequencyHz
-   * @returns {{ semitones: number, octaveAgnostic: number } | null}
-   */
-  getIntervalFromRoot(frequencyHz) {
-    if (!this._calibratedRootHz) return null;
-
-    const semitones = 12 * Math.log2(frequencyHz / this._calibratedRootHz);
-    const rounded = Math.round(semitones);
-    const octaveAgnostic = ((rounded % 12) + 12) % 12;
-
-    return {
-      semitones: rounded,
-      octaveAgnostic,
-    };
   }
 
   // --- Private Helpers ---

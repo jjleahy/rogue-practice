@@ -167,12 +167,6 @@
             font-size: 0.9em;
         }
 
-        .note-display .interval {
-            margin-top: 8px;
-            color: #c9a227;
-            font-size: 1.1em;
-        }
-
         /* Level meter */
         .level-bar {
             height: 16px;
@@ -253,29 +247,6 @@
         .raw-entry.pitch { color: #60a5fa; }
         .raw-entry.onset { color: #fbbf24; }
 
-        /* Calibration panel */
-        .calibration-status {
-            padding: 16px;
-            background: #1a1a2e;
-            border-radius: 8px;
-            margin-bottom: 12px;
-        }
-
-        .calibration-status .label {
-            color: #888;
-            margin-bottom: 4px;
-        }
-
-        .calibration-status .value {
-            font-size: 1.4em;
-            font-weight: bold;
-            color: #4ade80;
-        }
-
-        .calibration-status .value.none {
-            color: #666;
-        }
-
         .checkbox-row {
             display: flex;
             gap: 16px;
@@ -325,15 +296,6 @@
                 <span id="tendency-value" class="value">0 cents</span>
             </div>
 
-            <div class="calibration-status">
-                <div class="label">Calibrated Root</div>
-                <div id="calibration-value" class="value none">Not calibrated</div>
-            </div>
-
-            <div class="controls" style="margin-bottom: 0;">
-                <button id="calibrate-btn" class="btn btn-small" disabled>Set Current as Root</button>
-                <button id="clear-calibration-btn" class="btn btn-small" disabled>Clear</button>
-            </div>
         </div>
 
         <!-- Current Note Panel -->
@@ -345,7 +307,6 @@
             <div class="note-display">
                 <div id="current-note" class="note inactive">--</div>
                 <div id="current-details" class="details">Waiting for input...</div>
-                <div id="current-interval" class="interval"></div>
             </div>
             <div class="config-row">
                 <label>Hold time:</label>
@@ -390,12 +351,8 @@
         const transpositionValueEl = document.getElementById('transposition-value');
         const clefValueEl = document.getElementById('clef-value');
         const tendencyValueEl = document.getElementById('tendency-value');
-        const calibrationValueEl = document.getElementById('calibration-value');
-        const calibrateBtn = document.getElementById('calibrate-btn');
-        const clearCalibrationBtn = document.getElementById('clear-calibration-btn');
         const currentNoteEl = document.getElementById('current-note');
         const currentDetailsEl = document.getElementById('current-details');
-        const currentIntervalEl = document.getElementById('current-interval');
         const holdTimeEl = document.getElementById('hold-time');
         const levelFillEl = document.getElementById('level-fill');
         const eventLogEl = document.getElementById('event-log');
@@ -420,12 +377,6 @@
             return 20 * Math.log10(rms);
         }
 
-        function formatInterval(interval) {
-            if (!interval) return '';
-            const names = ['Do', 'Ra', 'Re', 'Me', 'Mi', 'Fa', 'Se', 'Sol', 'Le', 'La', 'Te', 'Ti'];
-            return names[interval.octaveAgnostic] || `${interval.semitones} st`;
-        }
-
         // Update current note display
         function updateCurrentNote() {
             const note = audioManager.lenientListener.getCurrentNote();
@@ -433,13 +384,6 @@
                 currentNoteEl.textContent = note.pitch;
                 currentNoteEl.classList.remove('inactive');
                 currentDetailsEl.textContent = `${note.frequency.toFixed(1)} Hz | ${note.cents >= 0 ? '+' : ''}${note.cents} cents`;
-
-                if (note.interval) {
-                    currentIntervalEl.textContent = formatInterval(note.interval);
-                } else {
-                    currentIntervalEl.textContent = '';
-                }
-
                 holdTimeEl.textContent = formatTime(note.duration);
                 noteStartTime = note.startTime;
             } else {
@@ -450,7 +394,6 @@
                 currentNoteEl.textContent = '--';
                 currentNoteEl.classList.add('inactive');
                 currentDetailsEl.textContent = 'Waiting for input...';
-                currentIntervalEl.textContent = '';
                 holdTimeEl.textContent = '--';
             }
         }
@@ -531,12 +474,12 @@
             // Note events
             audioManager.lenientListener.onNoteStart((event) => {
                 addNoteEvent(event);
-                calibrateBtn.disabled = false;
             });
 
             audioManager.lenientListener.onNoteEnd((event) => {
                 addNoteEvent(event);
-                calibrateBtn.disabled = true;
+                // Update tuning tendency with the cents deviation from this note
+                audioManager.instrumentContext.updateTendency(event.cents);
             });
 
             // Raw events
@@ -605,35 +548,6 @@
             statusEl.className = 'status stopped';
             startBtn.disabled = false;
             stopBtn.disabled = true;
-            calibrateBtn.disabled = true;
-        }
-
-        // Calibration
-        function calibrate() {
-            const note = audioManager.lenientListener.getCurrentNote();
-            if (note) {
-                audioManager.instrumentContext.setCalibration(note.frequency);
-                updateCalibrationDisplay();
-            }
-        }
-
-        function clearCalibration() {
-            audioManager.instrumentContext.clearCalibration();
-            updateCalibrationDisplay();
-        }
-
-        function updateCalibrationDisplay() {
-            const hz = audioManager.instrumentContext.getCalibrationHz();
-            if (hz) {
-                const pitch = audioManager.instrumentContext.frequencyToPitch(hz);
-                calibrationValueEl.textContent = `${pitch.pitch} (${hz.toFixed(1)} Hz)`;
-                calibrationValueEl.classList.remove('none');
-                clearCalibrationBtn.disabled = false;
-            } else {
-                calibrationValueEl.textContent = 'Not calibrated';
-                calibrationValueEl.classList.add('none');
-                clearCalibrationBtn.disabled = true;
-            }
         }
 
         // Instrument change
@@ -663,8 +577,6 @@
         // Event listeners
         startBtn.addEventListener('click', startAudio);
         stopBtn.addEventListener('click', stopAudio);
-        calibrateBtn.addEventListener('click', calibrate);
-        clearCalibrationBtn.addEventListener('click', clearCalibration);
         clearEventsBtn.addEventListener('click', () => {
             eventLogEl.innerHTML = '<div style="color: #666; padding: 8px;">Waiting for notes...</div>';
         });
@@ -675,7 +587,6 @@
 
         // Initialize
         populateInstrumentDropdown();
-        updateCalibrationDisplay();
     </script>
 </body>
 </html>

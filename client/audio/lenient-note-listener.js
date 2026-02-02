@@ -222,7 +222,6 @@ class LenientNoteListener {
         frequency: avgFrequency,
         cents: pitchInfo.cents,
         startTime: this._stablePitchStart,
-        interval: instrumentContext.getIntervalFromRoot(avgFrequency),
       });
     }
   }
@@ -247,7 +246,6 @@ class LenientNoteListener {
         startTime: this._currentNote.startTime,
         endTime: wallTime,
         duration: duration,
-        interval: instrumentContext.getIntervalFromRoot(avgFrequency),
       });
     }
 
@@ -297,7 +295,6 @@ class LenientNoteListener {
       cents: pitchInfo.cents,
       startTime: this._currentNote.startTime,
       duration: performance.now() - this._currentNote.startTime,
-      interval: instrumentContext.getIntervalFromRoot(avgFrequency),
     };
   }
 
