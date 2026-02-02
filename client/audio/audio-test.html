@@ -132,6 +132,7 @@
             background: #1a1a2e;
             color: #eee;
             font-size: 0.95em;
+            min-width: 180px;
         }
 
         .config-row .value {
@@ -306,13 +307,18 @@
         <div class="panel">
             <h2>Instrument Configuration</h2>
             <div class="config-row">
-                <label>Transposition:</label>
-                <select id="transposition">
-                    <option value="C">C (Concert)</option>
-                    <option value="Bb" selected>Bb</option>
-                    <option value="Eb">Eb</option>
-                    <option value="F">F</option>
+                <label>Instrument:</label>
+                <select id="instrument">
+                    <!-- Populated dynamically from instruments.js -->
                 </select>
+            </div>
+            <div class="config-row">
+                <label>Transposition:</label>
+                <span id="transposition-value" class="value">0 st</span>
+            </div>
+            <div class="config-row">
+                <label>Clef:</label>
+                <span id="clef-value" class="value">treble</span>
             </div>
             <div class="config-row">
                 <label>Tendency:</label>
@@ -374,12 +380,15 @@
 
     <script type="module">
         import audioManager from './audio.js';
+        import { getInstrumentNames } from '../instruments.js';
 
         // DOM elements
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const statusEl = document.getElementById('status');
-        const transpositionEl = document.getElementById('transposition');
+        const instrumentEl = document.getElementById('instrument');
+        const transpositionValueEl = document.getElementById('transposition-value');
+        const clefValueEl = document.getElementById('clef-value');
         const tendencyValueEl = document.getElementById('tendency-value');
         const calibrationValueEl = document.getElementById('calibration-value');
         const calibrateBtn = document.getElementById('calibrate-btn');
@@ -627,9 +636,28 @@
             }
         }
 
-        // Transposition change
-        function handleTranspositionChange() {
-            audioManager.instrumentContext.setTransposition(transpositionEl.value);
+        // Instrument change
+        function handleInstrumentChange() {
+            audioManager.instrumentContext.setInstrument(instrumentEl.value);
+            updateInstrumentDisplay();
+        }
+
+        function updateInstrumentDisplay() {
+            const semitones = audioManager.instrumentContext.getTranspositionSemitones();
+            const clef = audioManager.instrumentContext.getClef();
+            transpositionValueEl.textContent = `${semitones >= 0 ? '+' : ''}${semitones} st`;
+            clefValueEl.textContent = clef;
+        }
+
+        // Populate instrument dropdown
+        function populateInstrumentDropdown() {
+            const names = getInstrumentNames();
+            instrumentEl.innerHTML = names.map(name =>
+                `<option value="${name}">${name}</option>`
+            ).join('');
+            // Default to Cornet (common brass band instrument)
+            instrumentEl.value = 'Cornet';
+            handleInstrumentChange();
         }
 
         // Event listeners
@@ -643,9 +671,10 @@
         clearRawBtn.addEventListener('click', () => {
             rawLogEl.innerHTML = '';
         });
-        transpositionEl.addEventListener('change', handleTranspositionChange);
+        instrumentEl.addEventListener('change', handleInstrumentChange);
 
         // Initialize
+        populateInstrumentDropdown();
         updateCalibrationDisplay();
     </script>
 </body>

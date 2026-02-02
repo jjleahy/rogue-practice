@@ -2,7 +2,9 @@
  * InstrumentContext - Shared context for instrument configuration and calibration
  *
  * Holds:
- * - Transposition (Bb, Eb, F, C instruments)
+ * - Instrument name and configuration (from instruments.js)
+ * - Transposition (semitones from concert pitch)
+ * - Clef (treble/bass)
  * - Calibrated root frequency (player's fundamental)
  * - Global pitch tendency (learned over time)
  *
@@ -10,32 +12,23 @@
  * - Convert between written and sounding pitch
  * - Calculate expected frequencies (with tendency correction)
  * - Determine intervals from calibrated root
- *
- * TODO: Refactor to use a proper instruments config file that defines:
- * - Instrument names (e.g., "Trombone", "Bb Trumpet", "F Horn")
- * - Transposition (semitones from concert pitch)
- * - Clef (treble/bass)
- * - Expected fundamental pitch
- * See client/instruments.js for a starting point (needs reformatting)
  */
+
+import { getInstrument, getInstrumentNames } from '../instruments.js';
 
 // Note names using flats (matches brass convention)
 const NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
-// Transposition offsets in semitones (written C sounds as...)
-// Positive = instrument sounds higher than written
-// Negative = instrument sounds lower than written
-const TRANSPOSITIONS = {
-  'C': 0,    // Concert pitch (trombone, tuba in C)
-  'Bb': -2,  // Bb trumpet, Bb tuba - written C sounds Bb (down 2 semitones)
-  'Eb': 3,   // Eb alto horn, Eb tuba - written C sounds Eb (up 3 semitones)
-  'F': -7,   // F horn - written C sounds F (down 7 semitones, or up 5)
-};
-
 class InstrumentContext {
   constructor() {
-    // Transposition key - affects written<->sounding conversion
-    this._transposition = 'C';
+    // Current instrument name (key into INSTRUMENTS)
+    this._instrumentName = null;
+
+    // Transposition in semitones (from instrument config or manual override)
+    this._transpositionSemitones = 0;
+
+    // Clef (from instrument config or manual override)
+    this._clef = 'treble';
 
     // Calibrated root - the player's fundamental note frequency in Hz
     // For Bb trumpet, this would be ~233 Hz (Bb3) when playing written C4
@@ -52,22 +45,69 @@ class InstrumentContext {
   // --- Configuration ---
 
   /**
-   * Set the instrument transposition
-   * @param {string} key - 'C', 'Bb', 'Eb', or 'F'
+   * Set the current instrument by name
+   * @param {string} name - Instrument name (e.g., "Trumpet", "Euphonium")
    */
-  setTransposition(key) {
-    if (!TRANSPOSITIONS.hasOwnProperty(key)) {
-      throw new Error(`Unknown transposition: ${key}. Use one of: ${Object.keys(TRANSPOSITIONS).join(', ')}`);
+  setInstrument(name) {
+    const config = getInstrument(name);
+    if (!config) {
+      throw new Error(`Unknown instrument: ${name}. Use one of: ${getInstrumentNames().join(', ')}`);
     }
-    this._transposition = key;
+    this._instrumentName = name;
+    this._transpositionSemitones = config.transposition;
+    this._clef = config.clef;
   }
 
   /**
-   * Get current transposition
+   * Get current instrument name
+   * @returns {string|null}
+   */
+  getInstrumentName() {
+    return this._instrumentName;
+  }
+
+  /**
+   * Get current instrument config
+   * @returns {object|null}
+   */
+  getInstrumentConfig() {
+    return this._instrumentName ? getInstrument(this._instrumentName) : null;
+  }
+
+  /**
+   * Set transposition directly in semitones (for manual override)
+   * @param {number} semitones - Semitones from concert pitch
+   */
+  setTranspositionSemitones(semitones) {
+    this._transpositionSemitones = semitones;
+    this._instrumentName = null; // Clear instrument since manually overridden
+  }
+
+  /**
+   * Get current transposition in semitones
+   * @returns {number}
+   */
+  getTranspositionSemitones() {
+    return this._transpositionSemitones;
+  }
+
+  /**
+   * Set clef directly (for manual override)
+   * @param {string} clef - 'treble' or 'bass'
+   */
+  setClef(clef) {
+    if (clef !== 'treble' && clef !== 'bass') {
+      throw new Error(`Unknown clef: ${clef}. Use 'treble' or 'bass'`);
+    }
+    this._clef = clef;
+  }
+
+  /**
+   * Get current clef
    * @returns {string}
    */
-  getTransposition() {
-    return this._transposition;
+  getClef() {
+    return this._clef;
   }
 
   /**
@@ -142,8 +182,7 @@ class InstrumentContext {
    */
   writtenToSounding(writtenPitch) {
     const { pitchClass, octave } = this._parsePitch(writtenPitch);
-    const semitones = TRANSPOSITIONS[this._transposition];
-    return this._transposePitch(pitchClass, octave, semitones);
+    return this._transposePitch(pitchClass, octave, this._transpositionSemitones);
   }
 
   /**
@@ -153,8 +192,7 @@ class InstrumentContext {
    */
   soundingToWritten(soundingPitch) {
     const { pitchClass, octave } = this._parsePitch(soundingPitch);
-    const semitones = -TRANSPOSITIONS[this._transposition];
-    return this._transposePitch(pitchClass, octave, semitones);
+    return this._transposePitch(pitchClass, octave, -this._transpositionSemitones);
   }
 
   /**
@@ -297,4 +335,4 @@ class InstrumentContext {
 const instrumentContext = new InstrumentContext();
 
 export default instrumentContext;
-export { InstrumentContext, NOTE_NAMES, TRANSPOSITIONS };
+export { InstrumentContext, NOTE_NAMES, getInstrumentNames };
