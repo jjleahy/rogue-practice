@@ -172,16 +172,34 @@ class InstrumentContext {
   /**
    * Convert frequency to pitch name and cents deviation
    * Returns written pitch by default (factoring in instrument transposition)
+   *
+   * Pitch boundaries are shifted by the global tendency, so a player who tends
+   * sharp will have notes detected as the lower pitch for longer. For example,
+   * with +20 cents tendency, a note up to +70 cents sharp is still the lower pitch.
+   *
    * @param {number} frequencyHz
    * @param {Object} [options]
    * @param {boolean} [options.concertPitch=false] - If true, return concert/sounding pitch instead of written
-   * @returns {{ pitch: string, pitchClass: string, octave: number, cents: number, midiNote: number }}
+   * @returns {{ pitch: string, pitchClass: string, octave: number, cents: number, centsFromTendency: number, midiNote: number }}
+   *   - cents: raw deviation from the detected pitch (can exceed ±50 with tendency)
+   *   - centsFromTendency: deviation from expected tendency (always -50 to +50)
    */
   frequencyToPitch(frequencyHz, options = {}) {
+    const tendencyCents = this._globalTendencyCents;
+    const tendencySemitones = tendencyCents / 100;
+
     // MIDI note number (can be fractional)
     const midiFloat = 12 * Math.log2(frequencyHz / 440) + 69;
-    const midiRounded = Math.round(midiFloat);
+
+    // Shift by tendency before rounding so pitch boundaries adjust
+    // e.g., with +20 tendency, a note up to +70 cents is still the lower pitch
+    const midiRounded = Math.round(midiFloat - tendencySemitones);
+
+    // Cents is still the raw deviation from the base pitch (not tendency-adjusted)
     const cents = Math.round((midiFloat - midiRounded) * 100);
+
+    // How far from expected tendency (always -50 to +50)
+    const centsFromTendency = Math.round(cents - tendencyCents);
 
     const soundingPitchClass = NOTE_NAMES[((midiRounded % 12) + 12) % 12];
     const soundingOctave = Math.floor(midiRounded / 12) - 1;
@@ -194,6 +212,7 @@ class InstrumentContext {
         pitchClass: soundingPitchClass,
         octave: soundingOctave,
         cents,
+        centsFromTendency,
         midiNote: midiRounded,
       };
     }
@@ -206,6 +225,7 @@ class InstrumentContext {
       pitchClass: parsed.pitchClass,
       octave: parsed.octave,
       cents,
+      centsFromTendency,
       midiNote: midiRounded,
       soundingPitch,  // Include sounding pitch for reference
     };
