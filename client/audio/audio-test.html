@@ -297,6 +297,87 @@
             color: #4ade80;
             font-weight: bold;
         }
+
+        /* Command Detector */
+        .command-options {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .command-option {
+            flex: 1;
+            padding: 16px;
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.15s;
+        }
+
+        .command-option.selected {
+            border-color: #c9a227;
+            background: #2a2a3e;
+        }
+
+        .command-option .option-name {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #888;
+        }
+
+        .command-option.selected .option-name {
+            color: #c9a227;
+        }
+
+        .command-option .option-pitch {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .command-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .command-action {
+            flex: 1;
+            padding: 12px;
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .command-action.flash-confirm {
+            background: #166534;
+            border-color: #4ade80;
+            color: #4ade80;
+        }
+
+        .command-action.flash-cancel {
+            background: #7f1d1d;
+            border-color: #f87171;
+            color: #f87171;
+        }
+
+        .command-memory {
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            font-family: monospace;
+            color: #888;
+        }
+
+        .command-memory .memory-notes {
+            color: #60a5fa;
+        }
     </style>
 </head>
 <body>
@@ -349,6 +430,36 @@
             </div>
         </div>
 
+        <!-- Command Detector Panel -->
+        <div class="panel">
+            <h2>Command Detector</h2>
+            <div class="controls" style="margin-bottom: 12px;">
+                <button id="command-toggle-btn" class="btn" disabled>Activate</button>
+                <span id="command-status" class="status stopped">Inactive</span>
+            </div>
+            <div class="command-options">
+                <div class="command-option" data-option="re">
+                    <div class="option-name">Re</div>
+                    <div class="option-pitch">D</div>
+                </div>
+                <div class="command-option" data-option="mi">
+                    <div class="option-name">Mi</div>
+                    <div class="option-pitch">E</div>
+                </div>
+                <div class="command-option" data-option="fa">
+                    <div class="option-name">Fa</div>
+                    <div class="option-pitch">F</div>
+                </div>
+            </div>
+            <div class="command-actions">
+                <div id="command-cancel" class="command-action">Cancel (Do-Sol)</div>
+                <div id="command-confirm" class="command-action">Confirm (Sol-Do)</div>
+            </div>
+            <div class="command-memory">
+                Memory: <span id="command-memory-notes" class="memory-notes">--</span>
+            </div>
+        </div>
+
         <!-- Signal Visualization Panel -->
         <div class="panel full-width">
             <h2>Signal Visualization</h2>
@@ -397,6 +508,7 @@
         import audioManager from './audio.js';
         import { getInstrumentNames } from '../instruments.js';
         import PerformanceAnalyzer from './performance-analyzer.js';
+        import CommandDetector from './command-detector.js';
 
         // DOM elements
         const startBtn = document.getElementById('start-btn');
@@ -418,11 +530,19 @@
         const statAccuracyEl = document.getElementById('stat-accuracy');
         const statTimingEl = document.getElementById('stat-timing');
         const statCentsEl = document.getElementById('stat-cents');
+        const commandToggleBtn = document.getElementById('command-toggle-btn');
+        const commandStatusEl = document.getElementById('command-status');
+        const commandCancelEl = document.getElementById('command-cancel');
+        const commandConfirmEl = document.getElementById('command-confirm');
+        const commandMemoryNotesEl = document.getElementById('command-memory-notes');
+        const commandOptionEls = document.querySelectorAll('.command-option');
 
         // State
         let startTime = 0;
         let noteStartTime = null;
         let updateInterval = null;
+        let commandDetector = null;
+        let selectedOption = null;
 
         // ========================================
         // Signal Visualization
@@ -564,14 +684,16 @@
             updateCurrentNote();
             tendencyValueEl.textContent = `${audioManager.instrumentContext.getTendencyCents().toFixed(1)} cents`;
             drawSignalCanvas();
+            // Update command memory display
+            if (commandDetector && commandDetector.isActive()) {
+                updateCommandMemory();
+            }
         }
 
         // Set up listeners
         function setupListeners() {
-            // Note end events update tuning tendency
-            audioManager.lenientListener.onNoteEnd((event) => {
-                audioManager.instrumentContext.updateTendency(event.cents);
-            });
+            // Set up command detector (handles noteStart/noteEnd and tuning tendency)
+            setupCommandDetector();
 
             // Raw events feed signal visualization AND performance analyzer
             audioManager.onRawEvent((data) => {
@@ -606,6 +728,95 @@
             });
         }
 
+        // ========================================
+        // Command Detector
+        // ========================================
+        function setupCommandDetector() {
+            commandDetector = new CommandDetector();
+
+            // Subscribe to lenient listener events
+            // Note: We need to chain callbacks since lenient listener only supports one callback per event
+            const originalNoteStartHandler = audioManager.lenientListener._onNoteStart;
+            const originalNoteEndHandler = audioManager.lenientListener._onNoteEnd;
+
+            audioManager.lenientListener.onNoteStart((event) => {
+                if (originalNoteStartHandler) originalNoteStartHandler(event);
+                commandDetector.getNoteStartHandler()(event);
+            });
+
+            audioManager.lenientListener.onNoteEnd((event) => {
+                if (originalNoteEndHandler) originalNoteEndHandler(event);
+                commandDetector.getNoteEndHandler()(event);
+                // Also update tuning tendency (moved from setupListeners)
+                audioManager.instrumentContext.updateTendency(event.cents);
+            });
+
+            // Set up command callbacks
+            commandDetector.onConfirm(() => {
+                flashAction('confirm');
+                updateCommandMemory();
+            });
+
+            commandDetector.onCancel(() => {
+                flashAction('cancel');
+                updateCommandMemory();
+            });
+
+            commandDetector.onOption(({ solfege }) => {
+                selectOption(solfege);
+                updateCommandMemory();
+            });
+        }
+
+        function flashAction(action) {
+            const el = action === 'confirm' ? commandConfirmEl : commandCancelEl;
+            el.classList.add(`flash-${action}`);
+            setTimeout(() => {
+                el.classList.remove(`flash-${action}`);
+            }, 500);
+        }
+
+        function selectOption(solfege) {
+            selectedOption = solfege;
+            commandOptionEls.forEach(el => {
+                el.classList.toggle('selected', el.dataset.option === solfege);
+            });
+        }
+
+        function updateCommandMemory() {
+            if (!commandDetector) {
+                commandMemoryNotesEl.textContent = '--';
+                return;
+            }
+            const memory = commandDetector.getMemory();
+            commandMemoryNotesEl.textContent = memory.length > 0 ? memory.join(' → ') : '(empty)';
+        }
+
+        function toggleCommandDetector() {
+            if (!commandDetector) return;
+
+            if (commandDetector.isActive()) {
+                commandDetector.deactivate();
+                commandToggleBtn.textContent = 'Activate';
+                commandToggleBtn.classList.remove('btn-stop');
+                commandStatusEl.textContent = 'Inactive';
+                commandStatusEl.className = 'status stopped';
+                // Clear UI
+                selectedOption = null;
+                commandOptionEls.forEach(el => el.classList.remove('selected'));
+                updateCommandMemory();
+            } else {
+                commandDetector.activate();
+                commandToggleBtn.textContent = 'Deactivate';
+                commandToggleBtn.classList.add('btn-stop');
+                commandStatusEl.textContent = 'Active';
+                commandStatusEl.className = 'status running';
+                updateCommandMemory();
+            }
+        }
+
+        commandToggleBtn.addEventListener('click', toggleCommandDetector);
+
         // Start audio
         async function startAudio() {
             startBtn.disabled = true;
@@ -638,6 +849,7 @@
             stopBtn.disabled = false;
             demoBtn.disabled = false;
             demoStatusEl.textContent = 'Ready to start';
+            commandToggleBtn.disabled = false;
 
             // Start update loop
             updateInterval = setInterval(updateUI, 50);
@@ -663,6 +875,16 @@
             }
             demoBtn.disabled = true;
             demoStatusEl.textContent = 'Start audio first';
+
+            // Deactivate command detector
+            if (commandDetector && commandDetector.isActive()) {
+                commandDetector.deactivate();
+                commandToggleBtn.textContent = 'Activate';
+                commandToggleBtn.classList.remove('btn-stop');
+                commandStatusEl.textContent = 'Inactive';
+                commandStatusEl.className = 'status stopped';
+            }
+            commandToggleBtn.disabled = true;
         }
 
         // Instrument change
