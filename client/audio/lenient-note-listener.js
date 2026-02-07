@@ -49,10 +49,10 @@ class LenientNoteListener {
     this._stablePitchStart = null;  // wallTime when current pitch became stable
     this._lastValidPitchTime = null;  // wallTime of last valid pitch detection
 
-    // Callbacks
-    this._onNoteStart = null;
-    this._onNoteEnd = null;
-    this._onPitchUpdate = null;  // Raw pitch updates (for visualization)
+    // Listener arrays (multi-listener pattern)
+    this._noteStartListeners = [];
+    this._noteEndListeners = [];
+    this._pitchUpdateListeners = [];  // Raw pitch updates (for visualization)
 
     // Enabled state
     this._enabled = true;
@@ -83,30 +83,54 @@ class LenientNoteListener {
     return this._enabled;
   }
 
-  // --- Callbacks ---
+  // --- Listeners ---
 
   /**
-   * Set callback for note start events
+   * Add listener for note start events
    * @param {function} callback - Receives note event object
+   * @returns {function} Unsubscribe function
    */
   onNoteStart(callback) {
-    this._onNoteStart = callback;
+    this._noteStartListeners.push(callback);
+    return () => {
+      const idx = this._noteStartListeners.indexOf(callback);
+      if (idx !== -1) this._noteStartListeners.splice(idx, 1);
+    };
   }
 
   /**
-   * Set callback for note end events
+   * Add listener for note end events
    * @param {function} callback - Receives note event object with duration
+   * @returns {function} Unsubscribe function
    */
   onNoteEnd(callback) {
-    this._onNoteEnd = callback;
+    this._noteEndListeners.push(callback);
+    return () => {
+      const idx = this._noteEndListeners.indexOf(callback);
+      if (idx !== -1) this._noteEndListeners.splice(idx, 1);
+    };
   }
 
   /**
-   * Set callback for raw pitch updates (for visualization)
+   * Add listener for raw pitch updates (for visualization)
    * @param {function} callback - Receives raw pitch data
+   * @returns {function} Unsubscribe function
    */
   onPitchUpdate(callback) {
-    this._onPitchUpdate = callback;
+    this._pitchUpdateListeners.push(callback);
+    return () => {
+      const idx = this._pitchUpdateListeners.indexOf(callback);
+      if (idx !== -1) this._pitchUpdateListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Remove all listeners
+   */
+  removeAllListeners() {
+    this._noteStartListeners = [];
+    this._noteEndListeners = [];
+    this._pitchUpdateListeners = [];
   }
 
   // --- Input from worklet ---
@@ -118,10 +142,8 @@ class LenientNoteListener {
   handlePitch(data) {
     const wallTime = performance.now();
 
-    // Notify raw pitch callback
-    if (this._onPitchUpdate) {
-      this._onPitchUpdate(data);
-    }
+    // Notify raw pitch listeners
+    this._emit(this._pitchUpdateListeners, data);
 
     if (!this._enabled) return;
 
@@ -141,6 +163,14 @@ class LenientNoteListener {
    */
   handleLevel(data) {
     // Could be used for silence detection, but we rely on pitch detection for now
+  }
+
+  // --- Internal helpers ---
+
+  _emit(listeners, event) {
+    for (const fn of listeners) {
+      fn(event);
+    }
   }
 
   // --- Internal processing ---
@@ -213,17 +243,15 @@ class LenientNoteListener {
     this._currentNote.frequency = avgFrequency;
     this._noteStartEmitted = true;
 
-    if (this._onNoteStart) {
-      this._onNoteStart({
-        type: 'noteStart',
-        pitch: pitchInfo.pitch,
-        pitchClass: pitchInfo.pitchClass,
-        octave: pitchInfo.octave,
-        frequency: avgFrequency,
-        cents: pitchInfo.cents,
-        startTime: this._stablePitchStart,
-      });
-    }
+    this._emit(this._noteStartListeners, {
+      type: 'noteStart',
+      pitch: pitchInfo.pitch,
+      pitchClass: pitchInfo.pitchClass,
+      octave: pitchInfo.octave,
+      frequency: avgFrequency,
+      cents: pitchInfo.cents,
+      startTime: this._stablePitchStart,
+    });
   }
 
   _endCurrentNote(wallTime) {
@@ -233,10 +261,10 @@ class LenientNoteListener {
     const pitchInfo = instrumentContext.frequencyToPitch(avgFrequency);
 
     // Only emit noteEnd if we emitted noteStart
-    if (this._noteStartEmitted && this._onNoteEnd) {
+    if (this._noteStartEmitted) {
       const duration = wallTime - this._currentNote.startTime;
 
-      this._onNoteEnd({
+      this._emit(this._noteEndListeners, {
         type: 'noteEnd',
         pitch: pitchInfo.pitch,
         pitchClass: pitchInfo.pitchClass,

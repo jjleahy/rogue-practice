@@ -20,6 +20,7 @@ For audio testing: open `client/audio/audio-test.html` directly in browser.
     audio.js                - AudioInputManager: orchestrates worklet, routes to listeners
     audio-worklet-processor.js - Runs WASM pitch/onset detection
     lenient-note-listener.js   - Forgiving note detection for commands/calibration
+    command-detector.js        - Gesture detection (sol-do confirm, do-sol cancel)
     performance-analyzer.js    - Precise analysis for judging excerpts
     instrument-context.js      - Instrument config, tuning tendency, pitch conversion
     audio-test.html            - Test harness for audio layers
@@ -45,8 +46,9 @@ The audio system uses a layered architecture:
 1. **AudioWorklet** - Runs WASM (microdsp) for pitch detection and onset detection in real-time
 2. **AudioInputManager** - Routes worklet messages to listeners, manages lifecycle
 3. **LenientNoteListener** - Emits `noteStart`/`noteEnd` events with forgiving thresholds (for commands, instrument setup)
-4. **PerformanceAnalyzer** - Buffers raw data during excerpt performance, matches detected notes against expectations
-5. **InstrumentContext** - Singleton holding instrument config, tuning tendency (learned over time), pitch conversion utilities
+4. **CommandDetector** - Detects Sol-Do (confirm) and Do-Sol (cancel) gesture sequences for navigation
+5. **PerformanceAnalyzer** - Buffers raw data during excerpt performance, matches detected notes against expectations
+6. **InstrumentContext** - Singleton holding instrument config, tuning tendency (learned over time), pitch conversion utilities
 
 ### Instrument Setup vs Tuning Calibration
 

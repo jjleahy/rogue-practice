@@ -5,19 +5,22 @@
  * - Create and manage AudioWorklet connection
  * - Route worklet messages to registered listeners
  * - Manage audio lifecycle (start, stop, cleanup)
- * - Expose LenientNoteListener and PerformanceAnalyzer
+ * - Expose LenientNoteListener, PerformanceAnalyzer, and CommandDetector
  *
  * Usage:
  *   import audioManager from './audio/audio.js';
  *
  *   await audioManager.init();
  *   audioManager.lenientListener.onNoteStart(note => { ... });
+ *   audioManager.commandDetector.onConfirm(() => { ... });
+ *   audioManager.commandDetector.activate();
  *   await audioManager.start();
  */
 
 import instrumentContext from './instrument-context.js';
 import LenientNoteListener from './lenient-note-listener.js';
 import PerformanceAnalyzer from './performance-analyzer.js';
+import CommandDetector from './command-detector.js';
 
 class AudioInputManager {
   constructor() {
@@ -32,12 +35,19 @@ class AudioInputManager {
     // Listeners
     this._lenientListener = new LenientNoteListener();
     this._performanceAnalyzer = new PerformanceAnalyzer();
+    this._commandDetector = new CommandDetector();
 
-    // Raw event callback (for visualization/debugging)
-    this._onRawEvent = null;
+    // Auto-wire: CommandDetector subscribes to LenientNoteListener
+    this._commandDetector.subscribeTo(this._lenientListener);
 
-    // Level callback (separate since it's high-frequency)
-    this._onLevel = null;
+    // Auto-wire: tendency tracking on every note end
+    this._lenientListener.onNoteEnd(event => {
+      instrumentContext.updateTendency(event.cents);
+    });
+
+    // Listener arrays (multi-listener pattern)
+    this._rawEventListeners = [];
+    this._levelListeners = [];
   }
 
   // --- Public accessors ---
@@ -56,6 +66,14 @@ class AudioInputManager {
    */
   get performanceAnalyzer() {
     return this._performanceAnalyzer;
+  }
+
+  /**
+   * Get the CommandDetector instance
+   * @returns {CommandDetector}
+   */
+  get commandDetector() {
+    return this._commandDetector;
   }
 
   /**
@@ -210,6 +228,11 @@ class AudioInputManager {
    */
   destroy() {
     this.stop();
+    this._commandDetector.unsubscribeFrom();
+    this._lenientListener.removeAllListeners();
+    this._commandDetector.removeAllListeners();
+    this._rawEventListeners = [];
+    this._levelListeners = [];
     this._cleanup();
   }
 
@@ -231,10 +254,8 @@ class AudioInputManager {
   // --- Message routing ---
 
   _handleWorkletMessage(data) {
-    // Notify raw event callback
-    if (this._onRawEvent) {
-      this._onRawEvent(data);
-    }
+    // Notify raw event listeners
+    this._emit(this._rawEventListeners, data);
 
     switch (data.type) {
       case 'pitch':
@@ -250,29 +271,43 @@ class AudioInputManager {
 
       case 'level':
         this._lenientListener.handleLevel(data);
-        if (this._onLevel) {
-          this._onLevel(data);
-        }
+        this._emit(this._levelListeners, data);
         break;
     }
   }
 
-  // --- Callbacks ---
+  _emit(listeners, event) {
+    for (const fn of listeners) {
+      fn(event);
+    }
+  }
+
+  // --- Listeners ---
 
   /**
-   * Set callback for raw worklet events (for debugging/visualization)
+   * Add listener for raw worklet events (for debugging/visualization)
    * @param {function} callback - Receives { type, ...data }
+   * @returns {function} Unsubscribe function
    */
   onRawEvent(callback) {
-    this._onRawEvent = callback;
+    this._rawEventListeners.push(callback);
+    return () => {
+      const idx = this._rawEventListeners.indexOf(callback);
+      if (idx !== -1) this._rawEventListeners.splice(idx, 1);
+    };
   }
 
   /**
-   * Set callback for level events (separate since high-frequency)
+   * Add listener for level events (separate since high-frequency)
    * @param {function} callback - Receives { rms, audioTime }
+   * @returns {function} Unsubscribe function
    */
   onLevel(callback) {
-    this._onLevel = callback;
+    this._levelListeners.push(callback);
+    return () => {
+      const idx = this._levelListeners.indexOf(callback);
+      if (idx !== -1) this._levelListeners.splice(idx, 1);
+    };
   }
 
   // --- Utility ---
@@ -283,6 +318,7 @@ class AudioInputManager {
   reset() {
     this._lenientListener.reset();
     this._performanceAnalyzer.reset();
+    this._commandDetector.deactivate();
   }
 }
 

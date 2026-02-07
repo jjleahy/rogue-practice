@@ -52,10 +52,10 @@ class CommandDetector {
     this._pendingNote = null;  // { pitchClass, solfege, startTime, timerId }
     this._memoryClearTimerId = null;  // Timer for clearing stale memory
 
-    // Callbacks
-    this._onConfirm = null;
-    this._onCancel = null;
-    this._onOption = null;
+    // Listener arrays (multi-listener pattern)
+    this._confirmListeners = [];
+    this._cancelListeners = [];
+    this._optionListeners = [];
 
     // Bound handlers for event subscription
     this._handleNoteStart = this._handleNoteStart.bind(this);
@@ -118,30 +118,54 @@ class CommandDetector {
     return this._active;
   }
 
-  // --- Callbacks ---
+  // --- Listeners ---
 
   /**
-   * Set callback for confirm gesture (sol-do)
+   * Add listener for confirm gesture (sol-do)
    * @param {function} callback
+   * @returns {function} Unsubscribe function
    */
   onConfirm(callback) {
-    this._onConfirm = callback;
+    this._confirmListeners.push(callback);
+    return () => {
+      const idx = this._confirmListeners.indexOf(callback);
+      if (idx !== -1) this._confirmListeners.splice(idx, 1);
+    };
   }
 
   /**
-   * Set callback for cancel gesture (do-sol)
+   * Add listener for cancel gesture (do-sol)
    * @param {function} callback
+   * @returns {function} Unsubscribe function
    */
   onCancel(callback) {
-    this._onCancel = callback;
+    this._cancelListeners.push(callback);
+    return () => {
+      const idx = this._cancelListeners.indexOf(callback);
+      if (idx !== -1) this._cancelListeners.splice(idx, 1);
+    };
   }
 
   /**
-   * Set callback for option selection
+   * Add listener for option selection
    * @param {function} callback - Receives { solfege, pitchClass }
+   * @returns {function} Unsubscribe function
    */
   onOption(callback) {
-    this._onOption = callback;
+    this._optionListeners.push(callback);
+    return () => {
+      const idx = this._optionListeners.indexOf(callback);
+      if (idx !== -1) this._optionListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Remove all listeners
+   */
+  removeAllListeners() {
+    this._confirmListeners = [];
+    this._cancelListeners = [];
+    this._optionListeners = [];
   }
 
   // --- LenientNoteListener Integration ---
@@ -151,8 +175,16 @@ class CommandDetector {
    * @param {LenientNoteListener} listener
    */
   subscribeTo(listener) {
-    listener.onNoteStart(this._handleNoteStart);
-    listener.onNoteEnd(this._handleNoteEnd);
+    this._unsubNoteStart = listener.onNoteStart(this._handleNoteStart);
+    this._unsubNoteEnd = listener.onNoteEnd(this._handleNoteEnd);
+  }
+
+  /**
+   * Unsubscribe from previously subscribed LenientNoteListener
+   */
+  unsubscribeFrom() {
+    if (this._unsubNoteStart) { this._unsubNoteStart(); this._unsubNoteStart = null; }
+    if (this._unsubNoteEnd) { this._unsubNoteEnd(); this._unsubNoteEnd = null; }
   }
 
   /**
@@ -218,6 +250,12 @@ class CommandDetector {
 
   // --- Internal Logic ---
 
+  _emit(listeners, event) {
+    for (const fn of listeners) {
+      fn(event);
+    }
+  }
+
   _cancelPendingNote() {
     if (this._pendingNote) {
       clearTimeout(this._pendingNote.timerId);
@@ -240,25 +278,19 @@ class CommandDetector {
     // Check for sequences first (they take priority and clear memory)
     if (this._checkSequence(this._config.confirmSequence)) {
       this._memory = [];
-      if (this._onConfirm) {
-        this._onConfirm();
-      }
+      this._emit(this._confirmListeners);
       return;
     }
 
     if (this._checkSequence(this._config.cancelSequence)) {
       this._memory = [];
-      if (this._onCancel) {
-        this._onCancel();
-      }
+      this._emit(this._cancelListeners);
       return;
     }
 
     // Check for active options
     if (this._config.activeOptions.includes(solfege)) {
-      if (this._onOption) {
-        this._onOption({ solfege, pitchClass });
-      }
+      this._emit(this._optionListeners, { solfege, pitchClass });
     }
   }
 

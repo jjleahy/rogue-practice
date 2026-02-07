@@ -13,13 +13,13 @@ A roguelike practice game where gameplay is controlled entirely via brass instru
 ### Audio Layer ✓
 - AudioWorklet with WASM (microdsp) for pitch/onset detection
 - LenientNoteListener working well for forgiving note detection
+- CommandDetector for Sol-Do/Do-Sol gesture recognition
 - InstrumentContext with instrument config and pitch conversion
 - Tuning calibration via InstrumentContext tendency tracking (exponential moving average)
 - PerformanceAnalyzer with note segmentation, onset refinement, and best-fit matching
 - audio-test.html for testing and visualization
 
 ### Needs Work
-- **Command detection** - Sol-Do/Do-Sol recognition not yet built on top of LenientNoteListener
 - **Instrument setup flow** - Fundamental note detection to auto-configure instrument
 
 ### Proof-of-Concept (to iterate/replace)
@@ -54,12 +54,13 @@ Development is iterative - focus on whichever area needs most attention.
 - [ ] Iterate on matching algorithm thresholds and edge cases
 
 ### Phase 3: Command Detection
-*Current focus*
 
-- [ ] Build command detector on top of LenientNoteListener
-- [ ] Detect Sol-Do (confirm) and Do-Sol (back) sequences
-- [ ] Handle silence gaps to distinguish commands from noodling
-- [ ] Test command recognition via audio-test.html or dedicated page
+- [x] Build command detector on top of LenientNoteListener
+- [x] Detect Sol-Do (confirm) and Do-Sol (cancel) sequences
+- [x] Handle silence gaps via minimum note duration (400ms threshold)
+- [x] Test command recognition via audio-test.html
+- [x] Implement multi-listener pattern for extensibility
+- [ ] Iterate on thresholds and edge cases based on real instrument testing
 
 ### Phase 4: Instrument Setup Flow
 - [ ] Design instrument setup screen (play fundamental, detect instrument)

@@ -508,7 +508,7 @@
         import audioManager from './audio.js';
         import { getInstrumentNames } from '../instruments.js';
         import PerformanceAnalyzer from './performance-analyzer.js';
-        import CommandDetector from './command-detector.js';
+        // CommandDetector is owned by audioManager — no direct import needed
 
         // DOM elements
         const startBtn = document.getElementById('start-btn');
@@ -692,7 +692,7 @@
 
         // Set up listeners
         function setupListeners() {
-            // Set up command detector (handles noteStart/noteEnd and tuning tendency)
+            // Set up command detector UI callbacks
             setupCommandDetector();
 
             // Raw events feed signal visualization AND performance analyzer
@@ -732,26 +732,10 @@
         // Command Detector
         // ========================================
         function setupCommandDetector() {
-            commandDetector = new CommandDetector();
+            // CommandDetector is owned by audioManager (auto-subscribed to lenientListener,
+            // tendency tracking is auto-wired). Just grab the reference and add UI callbacks.
+            commandDetector = audioManager.commandDetector;
 
-            // Subscribe to lenient listener events
-            // Note: We need to chain callbacks since lenient listener only supports one callback per event
-            const originalNoteStartHandler = audioManager.lenientListener._onNoteStart;
-            const originalNoteEndHandler = audioManager.lenientListener._onNoteEnd;
-
-            audioManager.lenientListener.onNoteStart((event) => {
-                if (originalNoteStartHandler) originalNoteStartHandler(event);
-                commandDetector.getNoteStartHandler()(event);
-            });
-
-            audioManager.lenientListener.onNoteEnd((event) => {
-                if (originalNoteEndHandler) originalNoteEndHandler(event);
-                commandDetector.getNoteEndHandler()(event);
-                // Also update tuning tendency (moved from setupListeners)
-                audioManager.instrumentContext.updateTendency(event.cents);
-            });
-
-            // Set up command callbacks
             commandDetector.onConfirm(() => {
                 flashAction('confirm');
                 updateCommandMemory();
