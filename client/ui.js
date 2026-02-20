@@ -24,7 +24,7 @@ export function init() {
         currentState: document.getElementById('current-state'),
 
         // Game states
-        calibration: document.getElementById('calibration'),
+        'instrument-setup': document.getElementById('instrument-setup'),
         menu: document.getElementById('menu'),
         gameplay: document.getElementById('gameplay'),
         results: document.getElementById('results'),
@@ -64,16 +64,32 @@ export function init() {
 }
 
 /**
- * Switch visible game state
+ * Switch visible game state/screen
  */
-export function showState(stateName) {
-    const states = ['calibration', 'menu', 'gameplay', 'results', 'gameover'];
-    states.forEach(state => {
-        if (elements[state]) {
-            elements[state].classList.toggle('active', state === stateName);
-        }
+export function showScreen(screenName) {
+    // Map screen IDs to DOM element IDs
+    const screenToElement = {
+        'instrument-setup': 'instrument-setup',
+        'menu': 'menu',
+        'countdown': 'gameplay',
+        'performance': 'gameplay',
+        'results': 'results',
+        'game-over': 'gameover',
+    };
+
+    const elementId = screenToElement[screenName] || screenName;
+    const allIds = [...new Set(Object.values(screenToElement))];
+
+    allIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === elementId);
     });
-    updateStateLabel(stateName);
+    updateStateLabel(screenName);
+}
+
+// Keep old name as alias for compatibility
+export function showState(stateName) {
+    showScreen(stateName);
 }
 
 /**
@@ -81,11 +97,12 @@ export function showState(stateName) {
  */
 function updateStateLabel(stateName) {
     const labels = {
-        calibration: 'Calibrating...',
-        menu: 'Main Menu',
-        gameplay: 'Playing',
-        results: 'Results',
-        gameover: 'Game Over'
+        'instrument-setup': 'Instrument Setup',
+        'menu': 'Main Menu',
+        'countdown': 'Get Ready...',
+        'performance': 'Playing',
+        'results': 'Results',
+        'game-over': 'Game Over',
     };
     if (elements.currentState) {
         elements.currentState.textContent = labels[stateName] || stateName;

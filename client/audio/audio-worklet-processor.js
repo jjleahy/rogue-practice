@@ -1,4 +1,4 @@
-import { initSync, MpmPitchDetector, OnsetDetector } from './lib/microdsp/main.js';
+import { initSync, MpmPitchDetector, OnsetDetector } from '/audio/lib/microdsp/main.js';
 
 class AudioProcessor extends AudioWorkletProcessor {
   constructor({ processorOptions }) {

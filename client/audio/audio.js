@@ -127,14 +127,14 @@ class AudioInputManager {
       console.log('[AudioInputManager] Sample rate:', this._audioContext.sampleRate);
 
       // Fetch WASM bytes - path relative to the HTML page loading this module
-      const wasmResponse = await fetch('./lib/microdsp/main_bg.wasm');
+      const wasmResponse = await fetch('/audio/lib/microdsp/main_bg.wasm');
       if (!wasmResponse.ok) {
         throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
       }
       const wasmBytes = await wasmResponse.arrayBuffer();
 
       // Register worklet - path relative to the HTML page
-      await this._audioContext.audioWorklet.addModule('./audio-worklet-processor.js');
+      await this._audioContext.audioWorklet.addModule('/audio/audio-worklet-processor.js');
 
       // Create worklet node
       this._workletNode = new AudioWorkletNode(this._audioContext, 'audio-processor', {

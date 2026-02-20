@@ -69,12 +69,12 @@
             font-size: 0.9em;
         }
 
-        /* Calibration screen */
-        #calibration {
+        /* Instrument setup screen */
+        #instrument-setup {
             text-align: center;
         }
 
-        #calibration h2 {
+        #instrument-setup h2 {
             margin-bottom: 20px;
         }
 
@@ -332,9 +332,9 @@
             <div id="current-state">Initializing...</div>
         </div>
 
-        <!-- Calibration screen -->
-        <div id="calibration" class="game-state active">
-            <h2>Instrument Calibration</h2>
+        <!-- Instrument setup screen -->
+        <div id="instrument-setup" class="game-state">
+            <h2>Instrument Setup</h2>
             <p id="calibration-instruction">Play and hold your instrument's fundamental note</p>
             <div id="detected-pitch">-</div>
             <div id="pitch-stability">
@@ -350,19 +350,19 @@
         <!-- Menu screen -->
         <div id="menu" class="game-state">
             <h2>Ready to Practice</h2>
-            <p style="color: #888; margin-bottom: 20px;">Play a note to select, then Sol-Do to confirm</p>
+            <p style="color: #888; margin-bottom: 20px;">Hold a note to select, then Sol-Do to confirm</p>
             <div class="menu-options">
                 <div class="menu-option" data-action="start-run">
                     <span>Start New Run</span>
-                    <span class="pitch-hint">C</span>
+                    <span class="pitch-hint">Do</span>
                 </div>
                 <div class="menu-option" data-action="practice">
                     <span>Free Practice</span>
-                    <span class="pitch-hint">E</span>
+                    <span class="pitch-hint">Re</span>
                 </div>
                 <div class="menu-option" data-action="settings">
                     <span>Settings</span>
-                    <span class="pitch-hint">G</span>
+                    <span class="pitch-hint">Mi</span>
                 </div>
             </div>
         </div>

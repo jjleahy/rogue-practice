@@ -1,493 +1,128 @@
 /**
- * Game state machine and core logic
+ * Game - State management and screen navigation
  *
- * TODO: Update to use new audio API from ./audio/audio.js
- * The old audio.js has been removed. New API:
- *
- *   import audioManager from './audio/audio.js';
- *
- *   await audioManager.init();
- *   await audioManager.start();
- *
- *   // For calibration and commands, use lenientListener:
- *   audioManager.lenientListener.onNoteStart(note => { ... });
- *   audioManager.lenientListener.onNoteEnd(note => { ... });
- *
- *   // For performance analysis, use performanceAnalyzer:
- *   audioManager.performanceAnalyzer.setExpectations([...]);
- *   audioManager.performanceAnalyzer.start();
- *   // ... play excerpt ...
- *   audioManager.performanceAnalyzer.stop();
- *   const result = audioManager.performanceAnalyzer.analyze();
- *
- *   // Instrument config:
- *   audioManager.instrumentContext.setTransposition('Bb');
- *   audioManager.instrumentContext.setCalibration(frequencyHz);
+ * Owns the game state, screen registry, and transition logic.
+ * Screens are factory functions that subscribe to audioManager in enter()
+ * and clean up in exit().
  */
 
-import * as Audio from './audio.js';  // TODO: Replace with new audio API
-import * as UI from './ui.js';
-import { HoldPitchScreen, ChoiceScreen, ScreenManager } from './screens.js';
+import audioManager from './audio/audio.js';
+import * as ui from './ui.js';
+import { createInitialState, resetPlayerState } from './game-state.js';
+import { createInstrumentSetupScreen } from './screens/instrument-setup.js';
+import { createMenuScreen } from './screens/menu.js';
+import { createCountdownScreen } from './screens/countdown.js';
+import { createPerformanceScreen } from './screens/performance.js';
+import { createResultsScreen } from './screens/results.js';
+import { createGameOverScreen } from './screens/game-over.js';
 
-// Game states
-const STATES = {
-    INIT: 'init',
-    CALIBRATION: 'calibration',
-    MENU: 'menu',
-    COUNTDOWN: 'countdown',
-    PLAYING: 'playing',
-    RESULTS: 'results',
-    GAMEOVER: 'gameover'
-};
+class Game {
+  constructor() {
+    this.state = createInitialState();
+    this._currentScreen = null;
 
-// Current state
-let currentState = STATES.INIT;
+    this._context = {
+      game: this,
+      audioManager,
+      ui,
+    };
 
-// Screen manager for audio-controlled UI flows
-const screenManager = new ScreenManager();
+    this._screenFactories = {
+      'instrument-setup': createInstrumentSetupScreen,
+      'menu': createMenuScreen,
+      'countdown': createCountdownScreen,
+      'performance': createPerformanceScreen,
+      'results': createResultsScreen,
+      'game-over': createGameOverScreen,
+    };
+  }
 
-// Run state
-let hp = 100;
-let maxHp = 100;
-let excerptsCompleted = 0;
-let totalNotesHit = 0;
-let bestStreak = 0;
-let currentStreak = 0;
+  async init() {
+    ui.init();
+    ui.debugLog('Game initializing...');
 
-// Current excerpt state
-let currentExcerpt = null;
-let playedNotes = [];
-let excerptStartTime = null;
-let currentBeat = 0;
-let expectedNoteIndex = 0;
-
-// Hardcoded test excerpts
-const TEST_EXCERPTS = [
-    {
-        name: 'Simple Scale Up',
-        notes: ['C4', 'D4', 'E4', 'F4'],
-        bpm: 60,
-        difficulty: 1
-    },
-    {
-        name: 'Alternating Notes',
-        notes: ['C4', 'E4', 'C4', 'E4', 'C4', 'E4'],
-        bpm: 60,
-        difficulty: 1
-    },
-    {
-        name: 'Scale Down',
-        notes: ['G4', 'F4', 'E4', 'D4', 'C4'],
-        bpm: 72,
-        difficulty: 2
-    },
-    {
-        name: 'Arpeggio',
-        notes: ['C4', 'E4', 'G4', 'C5'],
-        bpm: 80,
-        difficulty: 2
-    }
-];
-
-/**
- * Initialize the game
- */
-export async function init() {
-    UI.init();
-    UI.debugLog('Game initializing...');
-
-    // Initialize audio
-    const audioReady = await Audio.init();
-    if (!audioReady) {
-        UI.debugLog('ERROR: Could not initialize audio');
-        UI.updateCalibrationStatus('Microphone access denied');
-        return;
+    const ok = await audioManager.init();
+    if (!ok) {
+      ui.debugLog('ERROR: Could not initialize audio');
+      return;
     }
 
-    // Set up audio callbacks
-    Audio.setCallbacks({
-        onPitchDetected: handlePitchDetected,
-        onNoteStart: handleNoteStart,
-        onNoteEnd: handleNoteEnd,
-        onSilence: handleSilence
-    });
+    await audioManager.start();
+    ui.debugLog('Audio ready');
 
-    // Set up skip calibration button (debug)
-    const elements = UI.getElements();
-    elements.skipCalibration?.addEventListener('click', () => {
-        skipCalibration();
-    });
+    this.navigate('instrument-setup');
+  }
 
-    // Start listening and enter calibration
-    Audio.startListening();
-    enterState(STATES.CALIBRATION);
-
-    UI.debugLog('Game initialized');
-}
-
-/**
- * Enter a new state
- */
-function enterState(newState) {
-    UI.debugLog(`State: ${currentState} -> ${newState}`);
-    currentState = newState;
-
-    switch (newState) {
-        case STATES.CALIBRATION:
-            enterCalibration();
-            break;
-        case STATES.MENU:
-            enterMenu();
-            break;
-        case STATES.COUNTDOWN:
-            enterCountdown();
-            break;
-        case STATES.PLAYING:
-            enterPlaying();
-            break;
-        case STATES.RESULTS:
-            enterResults();
-            break;
-        case STATES.GAMEOVER:
-            enterGameOver();
-            break;
-    }
-}
-
-// === State Enter Functions ===
-
-function enterCalibration() {
-    UI.showState('calibration');
-    UI.updateCalibrationStatus('Play and hold your fundamental note...');
-    UI.updateCalibrationStability(0);
-
-    // Create HoldPitchScreen for calibration
-    const calibrationScreen = new HoldPitchScreen({
-        holdTime: 1500,
-        stabilityThreshold: 2,
-        minSamples: 5,
-        onUpdate: (percent, noteData) => {
-            if (percent === 0) {
-                // Just pitch detected, update display
-                UI.updateCalibrationPitch(noteData.note);
-            } else {
-                // Progress update
-                UI.updateCalibrationStability(percent);
-                const holdDuration = (percent / 100) * 1500;
-                UI.updateCalibrationStatus(`Hold ${noteData.note}... ${Math.round(holdDuration)}ms`);
-            }
-        },
-        onReset: () => {
-            UI.updateCalibrationStability(0);
-            UI.updateCalibrationStatus('Hold the note steady...');
-        },
-        onComplete: (avgFrequency, noteInfo) => {
-            Audio.setCalibrationRoot(noteInfo.note, avgFrequency);
-            UI.updateCalibrationStatus(`Calibrated to ${noteInfo.note}!`);
-            UI.debugLog(`Calibration complete: ${noteInfo.note} @ ${avgFrequency.toFixed(1)}Hz`);
-
-            setTimeout(() => {
-                screenManager.clearScreen();
-                enterState(STATES.MENU);
-            }, 1000);
-        }
-    });
-
-    screenManager.setScreen(calibrationScreen);
-}
-
-function enterMenu() {
-    UI.showState('menu');
-    UI.clearMenuHighlight();
-}
-
-function enterCountdown() {
-    UI.showState('gameplay');
-    UI.updateGameplayInstruction('Get ready...');
-    UI.clearPlayedNotes();
-
-    // Display the excerpt
-    if (currentExcerpt) {
-        UI.displayExcerpt(currentExcerpt.notes.map(n => n.replace(/\d+$/, '')));
-        UI.setTempo(currentExcerpt.bpm);
+  /**
+   * Navigate to a screen, pushing current onto stack for back navigation
+   */
+  navigate(screenId) {
+    const factory = this._screenFactories[screenId];
+    if (!factory) {
+      ui.debugLog(`ERROR: Unknown screen: ${screenId}`);
+      return;
     }
 
-    // 4-beat countdown
-    let countdown = 4;
-    UI.updateGameplayInstruction(`Starting in ${countdown}...`);
-
-    const countdownInterval = setInterval(() => {
-        countdown--;
-        if (countdown > 0) {
-            UI.updateGameplayInstruction(`Starting in ${countdown}...`);
-        } else {
-            clearInterval(countdownInterval);
-            enterState(STATES.PLAYING);
-        }
-    }, 60000 / (currentExcerpt?.bpm || 60));
-}
-
-function enterPlaying() {
-    playedNotes = [];
-    excerptStartTime = performance.now();
-    expectedNoteIndex = 0;
-    currentBeat = 0;
-
-    UI.updateGameplayInstruction('Play!');
-    Audio.clearNoteHistory();
-
-    // Start metronome
-    UI.startMetronome((beat) => {
-        currentBeat = beat;
-        // Could trigger timing checks here
-    });
-}
-
-function enterResults() {
-    UI.stopMetronome();
-
-    // Calculate results
-    const notesCorrect = playedNotes.filter(n => n.correct).length;
-    const notesTotal = currentExcerpt?.notes.length || 0;
-    const accuracy = notesTotal > 0 ? notesCorrect / notesTotal : 0;
-
-    // Determine success and HP change
-    let success = accuracy >= 0.5;
-    let hpChange = 0;
-
-    if (accuracy >= 0.9) {
-        hpChange = 20;
-    } else if (accuracy >= 0.7) {
-        hpChange = 10;
-    } else if (accuracy >= 0.5) {
-        hpChange = 0;
-    } else if (accuracy >= 0.3) {
-        hpChange = -10;
-    } else {
-        hpChange = -25;
+    if (this._currentScreen) {
+      this._currentScreen.exit();
+      this.state.screenStack.push(this.state.screenId);
     }
 
-    // Apply HP change
-    hp = Math.max(0, Math.min(maxHp, hp + hpChange));
-    UI.updateHP(hp, maxHp);
+    this.state.screenId = screenId;
+    this._currentScreen = factory(this._context);
+    ui.debugLog(`Screen: ${screenId}`);
+    this._currentScreen.enter();
+  }
 
-    // Update stats
-    if (success) {
-        excerptsCompleted++;
-        totalNotesHit += notesCorrect;
-        currentStreak += notesCorrect;
-        bestStreak = Math.max(bestStreak, currentStreak);
-    } else {
-        currentStreak = 0;
+  /**
+   * Go back to previous screen (pop stack)
+   */
+  goBack() {
+    if (this.state.screenStack.length === 0) return;
+
+    const prevId = this.state.screenStack.pop();
+    if (this._currentScreen) {
+      this._currentScreen.exit();
     }
 
-    // Show results
-    UI.showResults({
-        success,
-        notesCorrect,
-        notesTotal,
-        timingScore: accuracy >= 0.7 ? 'Good' : accuracy >= 0.5 ? 'OK' : 'Needs Work',
-        hpChange
-    });
+    this.state.screenId = prevId;
+    this._currentScreen = this._screenFactories[prevId](this._context);
+    ui.debugLog(`Screen: ${prevId} (back)`);
+    this._currentScreen.enter();
+  }
 
-    UI.debugLog(`Result: ${notesCorrect}/${notesTotal} (${Math.round(accuracy * 100)}%), HP: ${hpChange >= 0 ? '+' : ''}${hpChange}`);
-
-    // Check for game over
-    if (hp <= 0) {
-        setTimeout(() => enterState(STATES.GAMEOVER), 2000);
-    }
-}
-
-function enterGameOver() {
-    UI.showGameOver({
-        excerptsCompleted,
-        totalNotes: totalNotesHit,
-        bestStreak
-    });
-    resetRun();
-}
-
-// === Audio Callbacks ===
-
-function handlePitchDetected(noteInfo) {
-    // Route to screen manager if active screen
-    if (screenManager.isActive()) {
-        screenManager.handlePitchDetected(noteInfo);
-    }
-}
-
-function handleNoteStart(noteData) {
-    UI.debugLog(`Note start: ${noteData.note} (${noteData.cents >= 0 ? '+' : ''}${noteData.cents}c)`);
-
-    // Route to screen manager if active
-    if (screenManager.isActive()) {
-        screenManager.handleNoteStart(noteData);
-        return;
+  /**
+   * Navigate without pushing to stack (no back support)
+   */
+  replaceTo(screenId) {
+    const factory = this._screenFactories[screenId];
+    if (!factory) {
+      ui.debugLog(`ERROR: Unknown screen: ${screenId}`);
+      return;
     }
 
-    // Otherwise handle directly
-    switch (currentState) {
-        case STATES.MENU:
-            handleMenuNote(noteData);
-            break;
-        case STATES.PLAYING:
-            handlePlayingNote(noteData);
-            break;
-        case STATES.RESULTS:
-        case STATES.GAMEOVER:
-            handleNavigationNote(noteData);
-            break;
-    }
-}
-
-function handleNoteEnd(noteData) {
-    UI.debugLog(`Note end: ${noteData.note} (${Math.round(noteData.duration)}ms)`);
-
-    // Route to screen manager if active
-    if (screenManager.isActive()) {
-        screenManager.handleNoteEnd(noteData);
-        return;
+    if (this._currentScreen) {
+      this._currentScreen.exit();
     }
 
-    // Check for commands after note ends
-    if (currentState !== STATES.PLAYING) {
-        checkForCommand();
-    }
+    this.state.screenId = screenId;
+    this._currentScreen = factory(this._context);
+    ui.debugLog(`Screen: ${screenId}`);
+    this._currentScreen.enter();
+  }
+
+  /**
+   * Reset player state for a new run
+   */
+  resetRun() {
+    resetPlayerState(this.state);
+  }
 }
 
-function handleSilence(duration) {
-    // Could use this to detect pauses between phrases
-}
+const game = new Game();
 
-// === State-specific Note Handling ===
-
-function handleMenuNote(noteData) {
-    // Map notes to menu options based on interval from root
-    const interval = Audio.getIntervalFromRoot(noteData.note);
-    if (interval === null) return;
-
-    // C = 0, E = 4, G = 7 (assuming C root)
-    const normalizedInterval = ((interval % 12) + 12) % 12;
-
-    let menuIndex = -1;
-    if (normalizedInterval === 0) menuIndex = 0; // Root -> Start
-    else if (normalizedInterval === 4) menuIndex = 1; // Major 3rd -> Practice
-    else if (normalizedInterval === 7) menuIndex = 2; // 5th -> Settings
-
-    if (menuIndex >= 0) {
-        UI.highlightMenuOption(menuIndex);
-    }
-}
-
-function handlePlayingNote(noteData) {
-    if (!currentExcerpt || expectedNoteIndex >= currentExcerpt.notes.length) return;
-
-    const expectedNote = currentExcerpt.notes[expectedNoteIndex];
-    const isCorrect = Audio.sameNoteClass(noteData.note, expectedNote);
-
-    playedNotes.push({
-        note: noteData.note.replace(/\d+$/, ''),
-        expected: expectedNote.replace(/\d+$/, ''),
-        correct: isCorrect,
-        cents: noteData.cents,
-        time: performance.now() - excerptStartTime
-    });
-
-    UI.updatePlayedNotes(playedNotes, currentExcerpt.notes);
-    UI.debugLog(`Played ${noteData.note}, expected ${expectedNote}: ${isCorrect ? 'CORRECT' : 'WRONG'}`);
-
-    expectedNoteIndex++;
-
-    // Check if excerpt is complete
-    if (expectedNoteIndex >= currentExcerpt.notes.length) {
-        setTimeout(() => enterState(STATES.RESULTS), 500);
-    }
-}
-
-function handleNavigationNote(noteData) {
-    // Just highlight/prepare for command
-}
-
-function checkForCommand() {
-    const history = Audio.getNoteHistory(2);
-    if (history.length < 2) return;
-
-    const command = Audio.checkCommand(history);
-
-    if (command === 'confirm') {
-        UI.debugLog('Command: CONFIRM (Sol-Do)');
-        handleConfirm();
-    } else if (command === 'back') {
-        UI.debugLog('Command: BACK (Do-Sol)');
-        handleBack();
-    }
-}
-
-function handleConfirm() {
-    switch (currentState) {
-        case STATES.MENU:
-            // Start a run with a random excerpt
-            startNewExcerpt();
-            break;
-        case STATES.RESULTS:
-            if (hp > 0) {
-                startNewExcerpt();
-            } else {
-                enterState(STATES.GAMEOVER);
-            }
-            break;
-        case STATES.GAMEOVER:
-            enterState(STATES.CALIBRATION);
-            break;
-    }
-}
-
-function handleBack() {
-    switch (currentState) {
-        case STATES.RESULTS:
-            enterState(STATES.MENU);
-            break;
-        case STATES.MENU:
-            // Could go to settings or something
-            break;
-    }
-}
-
-// === Game Actions ===
-
-function startNewExcerpt() {
-    // Pick a random excerpt (could be difficulty-weighted later)
-    const availableExcerpts = TEST_EXCERPTS.filter(e => e.difficulty <= Math.ceil(excerptsCompleted / 2) + 1);
-    currentExcerpt = availableExcerpts[Math.floor(Math.random() * availableExcerpts.length)] || TEST_EXCERPTS[0];
-
-    UI.debugLog(`Starting excerpt: ${currentExcerpt.name}`);
-    enterState(STATES.COUNTDOWN);
-}
-
-function resetRun() {
-    hp = 100;
-    excerptsCompleted = 0;
-    totalNotesHit = 0;
-    bestStreak = 0;
-    currentStreak = 0;
-    UI.updateHP(hp, maxHp);
-}
-
-export function skipCalibration() {
-    // Debug function - set C4 as root
-    Audio.setCalibrationRoot('C4', 261.63);
-    UI.debugLog('Calibration skipped - using C4 as root');
-    enterState(STATES.MENU);
-}
-
-// Getters for state (for debugging)
-export function getCurrentState() { return currentState; }
-export function getHP() { return hp; }
-
-// Export for testing
-export { startNewExcerpt };
-
-// Start the game when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    init();
+  game.init();
 });
+
+export default game;
