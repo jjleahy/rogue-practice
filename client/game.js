@@ -39,7 +39,15 @@ class Game {
 
   async init() {
     ui.init();
-    ui.debugLog('Game initializing...');
+    ui.showScreen('start');
+
+    document.getElementById('start-button').addEventListener('click', () => {
+      this._startAudio();
+    });
+  }
+
+  async _startAudio() {
+    ui.debugLog('Initializing audio...');
 
     const ok = await audioManager.init();
     if (!ok) {

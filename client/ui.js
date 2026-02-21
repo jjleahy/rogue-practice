@@ -24,6 +24,7 @@ export function init() {
         currentState: document.getElementById('current-state'),
 
         // Game states
+        start: document.getElementById('start'),
         'instrument-setup': document.getElementById('instrument-setup'),
         menu: document.getElementById('menu'),
         gameplay: document.getElementById('gameplay'),
@@ -69,6 +70,7 @@ export function init() {
 export function showScreen(screenName) {
     // Map screen IDs to DOM element IDs
     const screenToElement = {
+        'start': 'start',
         'instrument-setup': 'instrument-setup',
         'menu': 'menu',
         'countdown': 'gameplay',
@@ -97,6 +99,7 @@ export function showState(stateName) {
  */
 function updateStateLabel(stateName) {
     const labels = {
+        'start': 'Welcome',
         'instrument-setup': 'Instrument Setup',
         'menu': 'Main Menu',
         'countdown': 'Get Ready...',

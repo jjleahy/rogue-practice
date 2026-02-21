@@ -11,7 +11,6 @@
 import { findInstrumentsByFundamental } from '../instruments.js';
 
 const HOLD_DURATION_MS = 1500;
-const STABILITY_THRESHOLD_SEMITONES = 2;
 
 export function createInstrumentSetupScreen(context) {
   const { game, audioManager, ui } = context;
@@ -99,40 +98,32 @@ export function createInstrumentSetupScreen(context) {
       ui.updateCalibrationPitch('-');
       reset();
 
-      // Listen for stable notes
+      // noteStart: lock in the pitch we're tracking
       unsubs.push(audioManager.lenientListener.onNoteStart(event => {
         if (completed) return;
 
         ui.updateCalibrationPitch(event.pitch);
 
-        // Check stability: is this the same pitch class we've been tracking?
         if (holdPitchClass && holdPitchClass === event.pitchClass && holdOctave === event.octave) {
-          // Same note continuing — add frequency sample
-          frequencies.push(event.frequency);
+          // Same note restarted — keep going
+          return;
+        }
 
-          const elapsed = performance.now() - holdStartTime;
-          const percent = Math.min(100, (elapsed / HOLD_DURATION_MS) * 100);
-          ui.updateCalibrationStability(percent);
-          ui.updateCalibrationStatus(`Hold ${event.pitch}... ${Math.round(elapsed)}ms`);
-        } else {
-          // Different note — check if it's close enough (stability threshold)
-          if (holdPitchClass && event.frequency && frequencies.length > 0) {
-            const lastFreq = frequencies[frequencies.length - 1];
-            const semitonesDiff = Math.abs(12 * Math.log2(event.frequency / lastFreq));
-            if (semitonesDiff > STABILITY_THRESHOLD_SEMITONES) {
-              // Too different, restart
-              reset();
-            }
-          }
+        // New note — start tracking
+        holdPitchClass = event.pitchClass;
+        holdOctave = event.octave;
+        holdStartTime = performance.now();
+        frequencies = [event.frequency];
+        ui.updateCalibrationStability(0);
+        ui.updateCalibrationStatus(`Hold ${event.pitch}...`);
+        startProgressTracking();
+      }));
 
-          // Start tracking new note
-          holdPitchClass = event.pitchClass;
-          holdOctave = event.octave;
-          holdStartTime = performance.now();
-          frequencies = [event.frequency];
-          ui.updateCalibrationStability(0);
-          ui.updateCalibrationStatus(`Hold ${event.pitch}...`);
-          startProgressTracking();
+      // pitchUpdate: accumulate frequency samples while note is held
+      unsubs.push(audioManager.lenientListener.onPitchUpdate(data => {
+        if (completed || !holdPitchClass || !data.isTone) return;
+        if (data.frequencyHz) {
+          frequencies.push(data.frequencyHz);
         }
       }));
 
