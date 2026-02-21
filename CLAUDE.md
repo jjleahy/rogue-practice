@@ -16,7 +16,7 @@ For audio testing: open `client/audio/audio-test.html` directly in browser.
 
 ```
 /client
-  /audio                    - Audio detection system (primary focus)
+  /audio                    - Audio detection system
     audio.js                - AudioInputManager: orchestrates worklet, routes to listeners
     audio-worklet-processor.js - Runs WASM pitch/onset detection
     lenient-note-listener.js   - Forgiving note detection for commands/calibration
@@ -26,10 +26,11 @@ For audio testing: open `client/audio/audio-test.html` directly in browser.
     audio-test.html            - Test harness for audio layers
     /lib/microdsp              - WASM pitch detection library
   instruments.js            - Instrument definitions (transposition, clef, range)
-  screens.js                - Screen patterns (HoldPitchScreen, ChoiceScreen)
-  game.js                   - State machine (proof-of-concept)
-  ui.js                     - DOM manipulation (proof-of-concept)
-  index.html                - Game UI (proof-of-concept)
+  /screens                  - Screen factory functions (instrument-setup, menu, countdown, etc.)
+  game.js                   - Game class: state machine, screen navigation
+  game-state.js             - State model (createInitialState, resetPlayerState)
+  ui.js                     - DOM manipulation and visual feedback
+  index.html                - Game UI
 
 /server
   server.js                 - Express server (serves static files)
@@ -52,19 +53,28 @@ The audio system uses a layered architecture:
 
 ### Instrument Setup vs Tuning Calibration
 
-- **Instrument Setup**: Player plays their fundamental note; system detects instrument and configures transposition/clef in InstrumentContext (not yet implemented)
+- **Instrument Setup**: Player holds fundamental note for 1.5s; system detects instrument and configures transposition/clef in InstrumentContext. After detection, player confirms instrument + clef choice, or silence returns to detection.
 - **Tuning Calibration**: InstrumentContext tracks the player's overall pitch tendency, adjusting pitch detection boundaries accordingly. Tendency is updated via `instrumentContext.updateTendency()` which uses exponential moving average to weight recent samples
 
-### Game Layer (proof-of-concept)
+### Game Layer
 
-Current game code (game.js, ui.js, screens.js, index.html) is proof-of-concept to be iterated or replaced. Focus is on getting audio right first.
+Game class (game.js) owns state and screen navigation (navigate, goBack, replaceTo). Screens are factory functions in /screens returning `{ id, enter(), exit() }`. Each screen subscribes to audioManager in enter() and cleans up in exit().
+
+### UI Principles
+
+- **Minimal UI** — avoid introductory text, labels, and chrome. A start button, then the instrument drives everything.
+- **No fixed-width container or status bar** — let the UI scale with the screen.
+- **Show transposed pitches** — UI shows the instrument's written pitch (e.g., "G" not "Sol", "D" / "E" / "F" for menu options). Concert pitch may appear in parentheses.
+- **Always-visible note indicator** — a small visual in the corner showing lenient listener activity (note detected, confirm/back gestures).
+- **Debug panel** — keep the debug log visible during development.
 
 ## Core Concepts
 
 ### Navigation via Audio
 - **Instrument Setup**: Hold fundamental note to establish player's instrument and key
-- **Confirm**: Sol-Do (5th down to root) - e.g., F→Bb for Bb instruments
-- **Back**: Do-Sol (root up to 5th) - e.g., Bb→F for Bb instruments
+- **Confirm**: Sol-Do (5th down to root) - e.g., G→C for Bb instruments (written pitch)
+- **Back**: Do-Sol (root up to 5th) - e.g., C→G for Bb instruments (written pitch)
+- **Menu selection**: Re / Mi / Fa (not Do, to avoid conflict with back gesture). Written pitches: D / E / F for Bb instruments.
 
 ### Instruments
 Supports Bb, Eb, F, and C instruments with appropriate transposition and clef settings. See `instruments.js` for full list.
@@ -82,10 +92,13 @@ npm test          # Run Vitest tests
 
 ## Commands Reference
 
-| Action  | Notes to Play | Example (Bb instrument) |
-|---------|---------------|-------------------------|
-| Confirm | Sol → Do      | F → Bb                  |
-| Back    | Do → Sol      | Bb → F                  |
+| Action      | Solfege    | Bb instrument (written) |
+|-------------|------------|-------------------------|
+| Confirm     | Sol → Do   | G → C                   |
+| Back        | Do → Sol   | C → G                   |
+| Menu opt 1  | Re         | D                       |
+| Menu opt 2  | Mi         | E                       |
+| Menu opt 3  | Fa         | F                       |
 
 ## Roadmap
 

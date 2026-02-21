@@ -8,25 +8,23 @@ A roguelike practice game where gameplay is controlled entirely via brass instru
 
 ---
 
-## Current State
+## Current State (as of 2026-02-20)
 
-### Audio Layer ✓
-- AudioWorklet with WASM (microdsp) for pitch/onset detection
-- LenientNoteListener working well for forgiving note detection
-- CommandDetector for Sol-Do/Do-Sol gesture recognition
-- InstrumentContext with instrument config and pitch conversion
-- Tuning calibration via InstrumentContext tendency tracking (exponential moving average)
-- PerformanceAnalyzer with note segmentation, onset refinement, and best-fit matching
-- audio-test.html for testing and visualization
+### Working
+- Audio layer: AudioWorklet + WASM pitch/onset detection, LenientNoteListener, CommandDetector, PerformanceAnalyzer, InstrumentContext
+- Game state machine with screen navigation (navigate/goBack/replaceTo)
+- Screens: start → instrument-setup → menu → countdown → performance → results → game-over
+- Instrument setup: hold fundamental for 1.5s, detects instrument, advances to menu
+- Start button satisfies browser user-gesture requirement for AudioContext
 
-### Needs Work
-- **Instrument setup flow** - Fundamental note detection to auto-configure instrument
-
-### Proof-of-Concept (to iterate/replace)
-- Game state machine (game.js)
-- Screens (screens.js, index.html)
-- UI (ui.js)
-- Excerpt handling and display
+### Iterating
+- **UI** — needs to be minimal, remove chrome/labels, scale with screen (no max-width container, no status bar)
+- **Instrument setup** — needs confirmation step with clef choice after detection; silence returns to detection
+- **Menu system** — switch from Do/Re/Mi to Re/Mi/Fa to avoid conflict with Do-Sol back gesture
+- **Pitch display** — show written/transposed pitch in UI (e.g., "D"/"E"/"F" for Bb instrument), not solfege names. Concert pitch in parentheses optionally.
+- **Note indicator** — need always-visible lenient listener + command gesture indicator in corner of screen
+- **Exercise screens** — need better success/failure detection, start cue, timing queue
+- **Exercise data** — user has a 43-note test exercise to use for development
 
 ---
 
@@ -63,22 +61,29 @@ Development is iterative - focus on whichever area needs most attention.
 - [ ] Iterate on thresholds and edge cases based on real instrument testing
 
 ### Phase 4: Instrument Setup Flow
-- [ ] Design instrument setup screen (play fundamental, detect instrument)
-- [ ] Integrate with InstrumentContext
-- [ ] Handle edge cases (wrong note, timeout, multiple instruments with same fundamental)
+- [x] Hold fundamental note to detect instrument (1.5s hold, pitchUpdate accumulation)
+- [x] Integrate with InstrumentContext (setInstrument / setTranspositionSemitones)
+- [ ] Confirmation step after detection: confirm instrument + choose clef, or silence to re-detect
+- [ ] Handle multiple instruments with same fundamental (e.g., Trumpet vs Cornet vs Flugelhorn)
 - [ ] Wire up tuning tendency updates from performance results
 
 ### Phase 5: Game State & Screens
-- [ ] Iterate on screen patterns (or replace)
-- [ ] Test that commands navigate between screens
-- [ ] Minimal visual design (positioned text, notes, simple metronome)
+- [x] Game class with navigate/goBack/replaceTo
+- [x] Screen factory pattern with enter/exit lifecycle
+- [x] Start button for audio context user gesture
+- [ ] Minimal UI — strip labels/chrome, remove fixed-width container and status bar
+- [ ] Menu options use Re/Mi/Fa (not Do/Re/Mi) to avoid Do-Sol back conflict
+- [ ] Show transposed written pitch in UI, not solfege names
+- [ ] Always-visible note/gesture indicator in corner
+- [ ] Do-Sol from main menu prompts "hold Sol" modal (not immediate back)
 
-### Phase 6: Game Mechanics & Exercise Generation
+### Phase 6: Exercise System
+- [ ] Better start cue / countdown before performance begins
+- [ ] Improve success/failure detection and feedback
+- [ ] Test with 43-note exercise
+- [ ] Exercise format and storage (currently hardcoded)
 - [ ] Design HP/scoring system
-- [ ] Create exercise/excerpt format
-- [ ] Build exercise generation or library
-- [ ] Implement difficulty progression
-- [ ] Test and iterate on what makes practice engaging
+- [ ] Difficulty progression
 
 ---
 
